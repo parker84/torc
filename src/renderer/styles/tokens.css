@@ -1,0 +1,133 @@
+@import 'tailwindcss';
+@import '@xterm/xterm/css/xterm.css';
+
+/*
+ * Two layers on purpose:
+ *   --t-*      the active theme's raw values, swapped by [data-theme]
+ *   --color-*  Tailwind's theme namespace, pointing at --t-*
+ * Because the indirection resolves at runtime, switching data-theme restyles
+ * every utility class instantly with no rebuild and no per-theme class names.
+ */
+@theme {
+  --color-bg: var(--t-bg);
+  --color-surface: var(--t-surface);
+  --color-raised: var(--t-raised);
+  --color-line: var(--t-line);
+  --color-fg: var(--t-fg);
+  --color-muted: var(--t-muted);
+  --color-accent: var(--t-accent);
+  --color-accent-soft: var(--t-accent-soft);
+  --color-warn: var(--t-warn);
+  --color-danger: var(--t-danger);
+  --color-ok: var(--t-ok);
+
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* ── notion (default, light) ─────────────────────────────────────────────── */
+:root,
+:root[data-theme='notion'] {
+  color-scheme: light;
+  --t-bg: #ffffff;
+  --t-surface: #f7f6f3;
+  --t-raised: #ffffff;
+  --t-line: #e9e9e7;
+  --t-fg: #37352f;
+  --t-muted: #787774;
+  --t-accent: #2383e2;
+  --t-accent-soft: #e7f1fb;
+  --t-warn: #d9730d;
+  --t-danger: #eb5757;
+  --t-ok: #0f7b6c;
+  --t-shadow: 0 1px 2px rgb(15 15 15 / 8%), 0 4px 12px rgb(15 15 15 / 6%);
+  --t-glow: none;
+}
+
+/* ── synthwave (cyberpunk) ───────────────────────────────────────────────── */
+:root[data-theme='synthwave'] {
+  color-scheme: dark;
+  --t-bg: #1a1425;
+  --t-surface: #201a2b;
+  --t-raised: #2a1f3d;
+  --t-line: #34294f;
+  --t-fg: #e6dcf5;
+  --t-muted: #7a6f9b;
+  --t-accent: #f92aad;
+  --t-accent-soft: #3d2a5e;
+  --t-warn: #fede5d;
+  --t-danger: #fe4450;
+  --t-ok: #72f1b8;
+  --t-shadow: 0 2px 24px rgb(249 42 173 / 12%);
+  --t-glow: 0 0 8px rgb(249 42 173 / 45%);
+}
+
+/* ── matrix ──────────────────────────────────────────────────────────────── */
+:root[data-theme='matrix'] {
+  color-scheme: dark;
+  --t-bg: #000000;
+  --t-surface: #04120a;
+  --t-raised: #071c0f;
+  --t-line: #0f3b21;
+  --t-fg: #00ff41;
+  --t-muted: #00a32b;
+  --t-accent: #7dffa0;
+  --t-accent-soft: #0f3b21;
+  --t-warn: #ffb000;
+  --t-danger: #ff3333;
+  --t-ok: #00ff41;
+  --t-shadow: 0 2px 24px rgb(0 255 65 / 12%);
+  --t-glow: 0 0 8px rgb(0 255 65 / 40%);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--t-bg);
+  color: var(--t-fg);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The matrix and synthwave themes are the ones that want a glow; notion opts
+   out by setting --t-glow to none. */
+.glow {
+  text-shadow: var(--t-glow);
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/*
+ * xterm paints its own element background from the terminal theme, which shows
+ * up as a dark frame around the padded area in the light theme. Let the pane's
+ * own bg-bg show through instead, and put the breathing room on the wrapper so
+ * the fit addon still measures the right box.
+ */
+.xterm,
+.xterm .xterm-viewport,
+.xterm .xterm-screen {
+  background-color: transparent !important;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--t-line);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--t-muted);
+}

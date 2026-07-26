@@ -1,0 +1,27 @@
+appId: dev.torc.app
+productName: Torc
+copyright: Copyright © 2026 Brydon Parker
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+
+# node-pty ships a native binding that must not be packed into the asar.
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch: [arm64]
+  # Unsigned local builds: without this, macOS quarantines the app on first run.
+  identity: null
+
+dmg:
+  title: Torc ${version}
