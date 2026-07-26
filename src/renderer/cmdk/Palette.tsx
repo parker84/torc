@@ -14,12 +14,18 @@ interface Row {
   run(): void | Promise<void>
 }
 
+type Mode = 'all' | 'panes' | 'send' | 'broadcast'
+
 /**
  * Prefix modes turn the palette into a control surface rather than a launcher:
  *   (none) commands   @ jump to an agent   > commands only
- * `/` and `!` (send-to-agent and broadcast) arrive with M2.
+ *   /      send a slash command to the focused agent
+ *   !      broadcast a prompt to every agent
  */
-function parse(input: string): { mode: 'all' | 'panes'; query: string } {
+function parse(input: string): { mode: Mode; query: string } {
+  // `/` keeps its slash: the agent needs to receive `/compact`, not `compact`.
+  if (input.startsWith('/')) return { mode: 'send', query: input }
+  if (input.startsWith('!')) return { mode: 'broadcast', query: input.slice(1) }
   if (input.startsWith('@')) return { mode: 'panes', query: input.slice(1).trim() }
   if (input.startsWith('>')) return { mode: 'all', query: input.slice(1).trim() }
   return { mode: 'all', query: input.trim() }
@@ -49,6 +55,38 @@ export function Palette() {
 
   const rows = useMemo<Row[]>(() => {
     const { mode, query } = parse(input)
+
+    // Send and broadcast are actions, not searches: one row that does the thing.
+    if (mode === 'send' || mode === 'broadcast') {
+      const agents = panes.filter((p) => p.kind === 'claude')
+      const target = panes.find((p) => p.id === useStore.getState().activeId)
+      const trimmed = query.trim()
+      if (trimmed.length === 0) return []
+
+      return mode === 'send'
+        ? [
+            {
+              key: 'send',
+              title: `Send “${trimmed}” to ${target?.title ?? 'this pane'}`,
+              subtitle: 'Types it into the focused pane and submits',
+              group: 'Send',
+              score: 0,
+              run: () => target && useStore.getState().sendToPane(target.id, trimmed),
+            },
+          ]
+        : [
+            {
+              key: 'broadcast',
+              title: `Broadcast “${trimmed}” to ${agents.length} agent${
+                agents.length === 1 ? '' : 's'
+              }`,
+              subtitle: agents.map((a) => a.title).join(', ') || 'no agents running',
+              group: 'Broadcast',
+              score: 0,
+              run: () => useStore.getState().broadcast(trimmed),
+            },
+          ]
+    }
 
     const paneRows: Row[] = panes.map((pane, index) => ({
       key: `pane:${pane.id}`,
@@ -151,7 +189,7 @@ export function Palette() {
             setCursor(0)
           }}
           onKeyDown={onKeyDown}
-          placeholder="Run a command, or @ to jump to an agent…"
+          placeholder="Command · @ jump to agent · / send · ! broadcast to all"
           spellCheck={false}
           className="w-full border-b border-line bg-transparent px-4 py-3 text-sm text-fg outline-none placeholder:text-muted"
         />

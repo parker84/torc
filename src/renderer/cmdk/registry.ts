@@ -132,6 +132,53 @@ export function buildCommands(): Command[] {
       run: () => useStore.getState().cyclePane(-1),
     },
     {
+      id: 'view.grid-2',
+      title: 'Two panes side by side',
+      subtitle: 'Watch a second agent while the first works',
+      group: 'View',
+      keywords: ['split', 'grid', 'layout', 'side'],
+      hint: '⌥⌘2',
+      run: () => useStore.getState().setGridSize(2),
+    },
+    {
+      id: 'view.grid-4',
+      title: 'Four panes',
+      group: 'View',
+      keywords: ['split', 'grid', 'layout', 'quad'],
+      hint: '⌥⌘4',
+      run: () => useStore.getState().setGridSize(4),
+    },
+    {
+      id: 'view.grid-1',
+      title: 'Single pane',
+      group: 'View',
+      keywords: ['split', 'grid', 'layout', 'full'],
+      hint: '⌥⌘1',
+      run: () => useStore.getState().setGridSize(1),
+    },
+    {
+      id: 'session.open-editor',
+      title: 'Open this folder in VS Code',
+      group: 'Session',
+      keywords: ['edit', 'code', 'cursor'],
+      run: () => {
+        const { panes, activeId } = useStore.getState()
+        const pane = panes.find((p) => p.id === activeId)
+        if (pane) window.torc.openIn(pane.cwd, 'editor')
+      },
+    },
+    {
+      id: 'session.open-finder',
+      title: 'Reveal this folder in Finder',
+      group: 'Session',
+      keywords: ['finder', 'reveal', 'folder'],
+      run: () => {
+        const { panes, activeId } = useStore.getState()
+        const pane = panes.find((p) => p.id === activeId)
+        if (pane) window.torc.openIn(pane.cwd, 'finder')
+      },
+    },
+    {
       id: 'view.mission',
       title: 'Mission Control',
       subtitle: 'See every agent at once',

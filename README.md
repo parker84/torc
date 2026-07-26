@@ -24,7 +24,10 @@ through terminal tabs.
   blocks; clicking the notification jumps to that pane.
 - **Sessions survive a restart.** Layout and theme are saved, and agents come back via
   `claude --resume` with their conversation and scrollback intact.
-- **⌘K for everything** — spawn, jump, switch themes, with `@` to jump straight to an agent.
+- **Splits** — one, two or four panes on screen at once, so you can watch a second agent while the
+  first works.
+- **⌘K for everything** — prefix modes: `@` jump to an agent, `/` send a slash command to the focused
+  pane, `!` broadcast a prompt to the whole fleet.
 - **Three themes** — Notion (light), Synthwave (cyberpunk), Matrix.
 
 Monitoring reads Claude Code's own structured surfaces rather than scraping the terminal: hooks for
@@ -49,6 +52,7 @@ npm run dev
 | `⌘⇧[` / `⌘⇧]` | Previous / next agent |
 | `⌘1`–`⌘9` | Jump to agent |
 | `⌘F` | Find in the active terminal |
+| `⌥⌘1` / `⌥⌘2` / `⌥⌘4` | One, two or four panes on screen |
 | `⌃⌘T` | Cycle theme |
 | `⌘⇧R` | Restart pane (agents resume) |
 | `⌘W` | Close pane |
@@ -68,6 +72,8 @@ npm test                                  # vitest
 TORC_QA=/tmp/shots npm run dev            # screenshots itself, 10 steps
 TORC_DEMO=/tmp/demo npm run dev           # launches a real fleet across repos, read-only
 TORC_DEBUG_HOOKS=1 npm run dev            # log every hook event received
+TORC_QA_MODE=restore npm run dev          # check session restore
+TORC_QA_MODE=split npm run dev            # check splits, broadcast, notifications
 ```
 
 The QA and demo harnesses drive the renderer through `window.__torc` and capture with
@@ -75,9 +81,8 @@ The QA and demo harnesses drive the renderer through `window.__torc` and capture
 
 ## Status
 
-Usable. Terminals, ⌘K, themes, monitoring, notifications and session restore all work, verified
-against a real five-agent fleet and in the packaged build. Not yet built: split panes (one pane is
-visible at a time; the rail and Mission Control cover the rest), cross-agent context sharing, and
-adapters that give non-Claude agents the same monitoring depth.
+Usable. Terminals, splits, ⌘K, themes, monitoring, notifications and session restore all work,
+verified against a real five-agent fleet and in the packaged build. Not yet built: cross-agent
+context sharing, and adapters that give non-Claude agents the same monitoring depth.
 
 Apache-2.0.

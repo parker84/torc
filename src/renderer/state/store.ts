@@ -9,6 +9,11 @@ function isThemeId(value: unknown): value is ThemeId {
   return typeof value === 'string' && (THEME_IDS as readonly string[]).includes(value)
 }
 
+function loadGridSize(): GridSize {
+  const stored = Number(localStorage.getItem(GRID_KEY))
+  return stored === 2 || stored === 4 ? stored : 1
+}
+
 function loadTheme(): ThemeId {
   // TORC_THEME wins in dev so QA can boot straight into a given theme.
   if (isThemeId(window.torc.devTheme)) return window.torc.devTheme
@@ -17,6 +22,9 @@ function loadTheme(): ThemeId {
 }
 
 export type View = 'workspace' | 'mission'
+export type GridSize = 1 | 2 | 4
+
+const GRID_KEY = 'torc:grid'
 
 /** Module-level so a StrictMode double-mount can't restore twice. */
 let restoreStarted = false
@@ -30,6 +38,8 @@ interface TorcState {
   /** Lives in the store rather than the component so QA can drive it. */
   paletteQuery: string
   findOpen: boolean
+  /** How many panes are visible at once: 1, 2 or 4. */
+  gridSize: GridSize
   /** Surfaced in a banner; a failed spawn must not disappear into the console. */
   error: string | null
   /** Last cwd used to open an agent — the sensible default for the next one. */
@@ -55,6 +65,11 @@ interface TorcState {
   setPaletteQuery(query: string): void
   setFind(open: boolean): void
   setError(message: string | null): void
+  setGridSize(size: GridSize): void
+  /** Types text into a pane and submits it. */
+  sendToPane(id: string, text: string): void
+  /** Sends the same prompt to every agent (shells are skipped). */
+  broadcast(text: string): void
 }
 
 export const useStore = create<TorcState>((set, get) => ({
@@ -65,6 +80,7 @@ export const useStore = create<TorcState>((set, get) => ({
   paletteOpen: false,
   paletteQuery: '',
   findOpen: false,
+  gridSize: loadGridSize(),
   error: null,
   lastCwd: null,
 
@@ -213,6 +229,28 @@ export const useStore = create<TorcState>((set, get) => ({
   setPaletteQuery: (paletteQuery) => set({ paletteQuery }),
   setFind: (findOpen) => set({ findOpen }),
   setError: (error) => set({ error }),
+
+  setGridSize(size) {
+    localStorage.setItem(GRID_KEY, String(size))
+    set({ gridSize: size, view: 'workspace' })
+  },
+
+  sendToPane(id, text) {
+    if (text.length === 0) return
+    // Text and Enter separately: a single bulk write can be read as a paste,
+    // which types the prompt without submitting it.
+    window.torc.sessions.write(id, text)
+    setTimeout(() => window.torc.sessions.write(id, '\r'), 120)
+  },
+
+  broadcast(text) {
+    const agents = get().panes.filter((p) => p.kind === 'claude')
+    // Stagger: several agents starting a turn in the same tick is a thundering
+    // herd on both the CPU and the API.
+    agents.forEach((pane, index) => {
+      setTimeout(() => get().sendToPane(pane.id, text), index * 400)
+    })
+  },
 }))
 
 /** Apply the persisted theme before first paint. */

@@ -18,11 +18,13 @@ function summarize(snapshot: SessionSnapshot): string {
   return 'finished and is waiting for a look'
 }
 
+/** Returns how many notifications were actually shown, so QA can assert on it. */
 export function updateAttention(
   snapshots: SessionSnapshot[],
   window: BrowserWindow | null,
   onActivate: (paneId: string) => void,
-): void {
+): number {
+  let shown = 0
   const live = new Set(snapshots.map((s) => s.id))
   for (const id of attentive) {
     if (!live.has(id)) attentive.delete(id)
@@ -53,6 +55,7 @@ export function updateAttention(
       onActivate(snapshot.id)
     })
     notification.show()
+    shown++
   }
 
   // Badge the dock with how many agents are waiting.
@@ -61,6 +64,7 @@ export function updateAttention(
     app.dock?.setBadge(waiting > 0 ? String(waiting) : '')
   }
   window?.setTitle(waiting > 0 ? `${BRAND.name} — ${waiting} waiting` : BRAND.name)
+  return shown
 }
 
 /** Called when the window regains focus: the user is looking, so stop badging. */

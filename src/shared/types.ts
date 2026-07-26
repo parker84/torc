@@ -92,6 +92,7 @@ export const IPC = {
   appPickDir: 'app:pick-dir',
   appLoadState: 'app:load-state',
   appSaveState: 'app:save-state',
+  appOpenIn: 'app:open-in',
   /** main → renderer: the user clicked a notification. */
   focusPane: 'app:focus-pane',
 } as const
@@ -133,6 +134,7 @@ export interface TorcApi {
   defaultCwd(): Promise<string>
   loadState(): Promise<SavedState | undefined>
   saveState(state: SavedState): void
+  openIn(path: string, target: 'editor' | 'finder'): void
   onFocusPane(cb: (claudeSessionId: string) => void): () => void
   /** Native folder picker; resolves null if the user cancels. */
   pickDirectory(): Promise<string | null>

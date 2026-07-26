@@ -12,10 +12,13 @@ import { registerSearch, unregisterSearch } from '../term/search'
 
 interface Props {
   pane: SessionSnapshot
+  /** Holds keyboard focus. Exactly one pane at a time. */
   active: boolean
+  /** On screen. With splits, several panes are visible but only one is active. */
+  visible: boolean
 }
 
-export function TerminalPane({ pane, active }: Props) {
+export function TerminalPane({ pane, active, visible }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -93,9 +96,9 @@ export function TerminalPane({ pane, active }: Props) {
     if (term) term.options.theme = THEMES[theme].terminal
   }, [theme])
 
-  // A pane that was hidden has stale dimensions; refit and take focus.
+  // A pane that was hidden, or whose slot changed size, has stale dimensions.
   useEffect(() => {
-    if (!active) return
+    if (!visible) return
     const term = termRef.current
     const fit = fitRef.current
     if (!term || !fit) return
@@ -106,15 +109,15 @@ export function TerminalPane({ pane, active }: Props) {
       } catch {
         // Pane not laid out yet; the ResizeObserver will catch up.
       }
-      term.focus()
+      if (active) term.focus()
     })
     return () => cancelAnimationFrame(raf)
-  }, [active, pane.id])
+  }, [active, visible, pane.id])
 
   return (
     <div
       className={`absolute inset-0 bg-bg px-2 py-1.5 ${
-        active ? 'z-10' : 'pointer-events-none invisible z-0'
+        visible ? 'z-10' : 'pointer-events-none invisible z-0'
       }`}
     >
       <div ref={hostRef} className="h-full w-full" />

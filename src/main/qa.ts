@@ -73,9 +73,50 @@ const RESTORE_STEPS: Step[] = [
   { name: 'restore-02-settled', waitMs: 14000 },
 ]
 
+/**
+ * Splits and notifications. The notification path can only be exercised with the
+ * window unfocused, which is why it blurs first — otherwise notify.ts correctly
+ * stays quiet and the check would prove nothing.
+ */
+const SPLIT_STEPS: Step[] = [
+  {
+    name: 'split-01-two-terminals',
+    js: `(async () => {
+      const store = window.__torc.store.getState();
+      await store.newSession({ kind: 'shell' });
+      await store.newSession({ kind: 'shell' });
+      await store.newSession({ kind: 'claude' });
+      window.__torc.store.getState().setTheme('synthwave');
+    })()`,
+    waitMs: 12000,
+  },
+  {
+    name: 'split-02-two-up',
+    js: `window.__torc.store.getState().setGridSize(2)`,
+    waitMs: 2500,
+  },
+  {
+    name: 'split-03-four-up',
+    js: `window.__torc.store.getState().setGridSize(4)`,
+    waitMs: 2500,
+  },
+  {
+    name: 'split-04-broadcast-palette',
+    js: `window.__torc.store.getState().setPalette(true); window.__torc.store.getState().setPaletteQuery('!what repo is this?')`,
+    waitMs: 1500,
+  },
+  {
+    name: 'split-05-back-to-one',
+    js: `window.__torc.store.getState().setPalette(false); window.__torc.store.getState().setGridSize(1)`,
+    waitMs: 2000,
+  },
+]
+
 export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
   mkdirSync(outDir, { recursive: true })
-  const steps = process.env.TORC_QA_MODE === 'restore' ? RESTORE_STEPS : STEPS
+  const mode = process.env.TORC_QA_MODE
+  const steps =
+    mode === 'restore' ? RESTORE_STEPS : mode === 'split' ? SPLIT_STEPS : STEPS
 
   for (const step of steps) {
     if (step.js) {
@@ -101,4 +142,43 @@ export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
   } catch (error) {
     console.log(`[qa] report failed: ${String(error)}`)
   }
+
+  if (mode === 'split') await checkNotification(win)
+}
+
+/**
+ * Proves the notification path rather than assuming it: blur the window, flip a
+ * real pane into needing attention through the same code the monitor uses, and
+ * confirm macOS accepted the notification.
+ */
+async function checkNotification(win: BrowserWindow): Promise<void> {
+  const { Notification } = await import('electron')
+  console.log(`[qa] notifications supported: ${Notification.isSupported()}`)
+
+  win.blur()
+  await delay(1200)
+  console.log(`[qa] window focused after blur: ${win.isFocused()}`)
+
+  const { updateAttention } = await import('./notify')
+  const probe = () => [
+    {
+      id: 'qa-notification-probe',
+      kind: 'claude' as const,
+      cwd: process.cwd(),
+      title: 'notification probe',
+      status: 'needs-input' as const,
+      startedAt: Date.now(),
+      needsAttention: true,
+      recentTools: [],
+    },
+  ]
+
+  const first = updateAttention(probe(), win, (id) =>
+    console.log(`[qa] notification click would focus ${id}`),
+  )
+  // Notifications fire on the transition, so a repeat of the same state must
+  // stay silent — otherwise a busy agent would nag once per snapshot.
+  const second = updateAttention(probe(), win, () => {})
+  console.log(`[qa] notifications shown: first=${first} repeat=${second} (expect 1 and 0)`)
+  await delay(1500)
 }

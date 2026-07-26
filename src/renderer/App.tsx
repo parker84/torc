@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useStore } from './state/store'
 import { Rail } from './components/Rail'
 import { StatusBar } from './components/StatusBar'
-import { TerminalPane } from './components/TerminalPane'
+import { PaneGrid } from './components/PaneGrid'
 import { MissionControl } from './components/MissionControl'
 import { FindBar } from './components/FindBar'
 import { Palette } from './cmdk/Palette'
@@ -50,6 +50,9 @@ export function App() {
       window.torcMenu.on('prev-agent', () => cyclePane(-1)),
       window.torcMenu.on('next-attention', () => focusNextAttention()),
       window.torcMenu.on('find', () => setFind(true)),
+      window.torcMenu.on('grid-1', () => useStore.getState().setGridSize(1)),
+      window.torcMenu.on('grid-2', () => useStore.getState().setGridSize(2)),
+      window.torcMenu.on('grid-4', () => useStore.getState().setGridSize(4)),
       window.torcMenu.on('cycle-theme', () => cycleTheme()),
       window.torcMenu.on('mission-control', () =>
         setView(useStore.getState().view === 'mission' ? 'workspace' : 'mission'),
@@ -128,9 +131,7 @@ export function App() {
             </div>
           )}
 
-          {panes.map((pane) => (
-            <TerminalPane key={pane.id} pane={pane} active={pane.id === activeId} />
-          ))}
+          <PaneGrid panes={panes} />
 
           {view === 'mission' && <MissionControl />}
           <FindBar />

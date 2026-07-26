@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
+import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
@@ -195,6 +196,22 @@ function buildMenu(): void {
           },
           { type: 'separator' },
           {
+            label: 'Single Pane',
+            accelerator: 'CmdOrCtrl+Alt+1',
+            click: () => send('menu:grid-1'),
+          },
+          {
+            label: 'Two Panes',
+            accelerator: 'CmdOrCtrl+Alt+2',
+            click: () => send('menu:grid-2'),
+          },
+          {
+            label: 'Four Panes',
+            accelerator: 'CmdOrCtrl+Alt+4',
+            click: () => send('menu:grid-4'),
+          },
+          { type: 'separator' },
+          {
             // The tab-switching gesture every other Mac app uses.
             label: 'Next Agent',
             accelerator: 'Shift+CmdOrCtrl+]',
@@ -246,6 +263,18 @@ function registerIpc(): void {
   ipcMain.handle(IPC.appDefaultCwd, () => launchCwd)
   ipcMain.handle(IPC.appLoadState, () => loadState())
   ipcMain.on(IPC.appSaveState, (_e, state: Parameters<typeof saveState>[0]) => saveState(state))
+  ipcMain.on(IPC.appOpenIn, async (_e, path: string, target: 'editor' | 'finder') => {
+    if (target === 'finder') {
+      shell.openPath(path)
+      return
+    }
+    // `code` lives on the login-shell PATH, not the app's.
+    const env = await resolveUserEnv()
+    execFile('code', [path], { env }, (error) => {
+      // No `code` on PATH — fall back to whatever owns the folder.
+      if (error) shell.openPath(path)
+    })
+  })
   ipcMain.handle(IPC.appPickDir, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],

@@ -111,6 +111,17 @@ window is focused — the pane you're already watching shouldn't interrupt you. 
 the waiting count and clears on window focus; clicking a notification focuses the window and jumps to
 that pane.
 
+## Splits
+
+All terminals stay mounted in one stable parent and are *positioned* by inline style
+(`layout/panes.ts` → `SLOTS`). Moving a pane between DOM parents would unmount xterm and take its
+scrollback with it, so changing the grid changes geometry, never structure. Panes outside the visible
+window keep their last geometry and are simply hidden, which makes revealing one a cheap refit.
+
+`visibleWindow` picks which slice of the fleet is on screen: a window of `gridSize` panes that always
+contains the active one, clamped at both ends so the grid is never half-empty. That way `⌘⇧]` past
+the edge scrolls the window instead of losing your place.
+
 ## Renderer notes
 
 - **Theme switching** is two layers of CSS custom properties: `--t-*` holds the active theme's raw
