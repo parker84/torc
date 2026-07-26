@@ -18,6 +18,9 @@ function loadTheme(): ThemeId {
 
 export type View = 'workspace' | 'mission'
 
+/** Module-level so a StrictMode double-mount can't restore twice. */
+let restoreStarted = false
+
 interface TorcState {
   panes: SessionSnapshot[]
   activeId: string | null
@@ -26,6 +29,9 @@ interface TorcState {
   paletteOpen: boolean
   /** Lives in the store rather than the component so QA can drive it. */
   paletteQuery: string
+  findOpen: boolean
+  /** Surfaced in a banner; a failed spawn must not disappear into the console. */
+  error: string | null
   /** Last cwd used to open an agent — the sensible default for the next one. */
   lastCwd: string | null
 
@@ -39,9 +45,16 @@ interface TorcState {
   setTheme(theme: ThemeId): void
   cycleTheme(): void
   setView(view: View): void
+  /** Rebuilds last session's panes. Safe to call once at startup. */
+  restore(): Promise<void>
+  /** Focuses the next agent that needs you, wrapping around. */
+  focusNextAttention(): void
+  restartPane(id?: string): Promise<void>
   setPalette(open: boolean): void
   togglePalette(): void
   setPaletteQuery(query: string): void
+  setFind(open: boolean): void
+  setError(message: string | null): void
 }
 
 export const useStore = create<TorcState>((set, get) => ({
@@ -51,6 +64,8 @@ export const useStore = create<TorcState>((set, get) => ({
   view: 'workspace',
   paletteOpen: false,
   paletteQuery: '',
+  findOpen: false,
+  error: null,
   lastCwd: null,
 
   async newSession(spec) {
@@ -67,7 +82,11 @@ export const useStore = create<TorcState>((set, get) => ({
       }))
     } catch (error) {
       // A spawn that fails (missing binary, bad cwd) must not fail silently.
+      const detail = error instanceof Error ? error.message : String(error)
       console.error(`torc: could not start ${spec.kind} in ${resolved}:`, error)
+      set({
+        error: `Couldn't start ${spec.kind === 'claude' ? 'an agent' : 'a terminal'} in ${resolved}. ${detail}`,
+      })
     }
   },
 
@@ -133,20 +152,107 @@ export const useStore = create<TorcState>((set, get) => ({
   },
 
   setView: (view) => set({ view }),
+
+  async restore() {
+    // Guarding on panes.length is not enough: restore awaits, and React's
+    // StrictMode calls the mount effect twice, so both calls would see an empty
+    // fleet and every pane would come back doubled.
+    if (restoreStarted) return
+    restoreStarted = true
+
+    const saved = await window.torc.loadState()
+    if (!saved || saved.panes.length === 0) return
+
+    if (isThemeId(saved.theme)) get().setTheme(saved.theme)
+
+    // Sequential, not parallel: five Claude Code boots at once thrash the CPU
+    // and the first pane should be usable immediately.
+    for (const pane of saved.panes) {
+      await get().newSession({
+        kind: pane.kind,
+        cwd: pane.cwd,
+        title: pane.title,
+        // Resume only when the transcript is still there; otherwise the pane
+        // comes back as a fresh agent in the right repo.
+        resumeSessionId: pane.resumable ? pane.claudeSessionId : undefined,
+      })
+    }
+
+    const panes = get().panes
+    const target = panes[saved.activeIndex ?? 0] ?? panes[0]
+    if (target) set({ activeId: target.id })
+  },
+
+  focusNextAttention() {
+    const { panes, activeId } = get()
+    const waiting = panes.filter((p) => p.needsAttention)
+    if (waiting.length === 0) return
+    // Start after the current pane so repeated presses walk the queue.
+    const currentIndex = panes.findIndex((p) => p.id === activeId)
+    const next =
+      waiting.find((p) => panes.indexOf(p) > currentIndex) ?? waiting[0]
+    get().setActive(next.id)
+  },
+
+  async restartPane(id) {
+    const target = id ?? get().activeId
+    if (!target) return
+    const pane = get().panes.find((p) => p.id === target)
+    if (!pane) return
+    await get().closePane(target)
+    await get().newSession({
+      kind: pane.kind,
+      cwd: pane.cwd,
+      title: pane.title,
+      resumeSessionId: pane.kind === 'claude' ? pane.claudeSessionId : undefined,
+    })
+  },
   // Opening always starts from a clean query.
   setPalette: (open) => set({ paletteOpen: open, paletteQuery: '' }),
   togglePalette: () => set((s) => ({ paletteOpen: !s.paletteOpen, paletteQuery: '' })),
   setPaletteQuery: (paletteQuery) => set({ paletteQuery }),
+  setFind: (findOpen) => set({ findOpen }),
+  setError: (error) => set({ error }),
 }))
 
 /** Apply the persisted theme before first paint. */
 document.documentElement.dataset.theme = useStore.getState().theme
 
 /**
+ * Mirror the layout to disk whenever it changes. Debounced because a busy fleet
+ * updates snapshots several times a second and none of that churn affects what
+ * we'd restore.
+ */
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+useStore.subscribe((state, previous) => {
+  const relevant = (s: typeof state) =>
+    `${s.theme}|${s.activeId}|${s.panes.map((p) => `${p.kind}:${p.cwd}:${p.claudeSessionId ?? ''}`).join(',')}`
+  if (relevant(state) === relevant(previous)) return
+
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    const s = useStore.getState()
+    window.torc.saveState({
+      theme: s.theme,
+      activeIndex: Math.max(
+        0,
+        s.panes.findIndex((p) => p.id === s.activeId),
+      ),
+      panes: s.panes.map((p) => ({
+        kind: p.kind,
+        cwd: p.cwd,
+        title: p.title,
+        claudeSessionId: p.claudeSessionId,
+      })),
+    })
+  }, 600)
+})
+
+/**
  * Dev-only handle for the QA harness in src/main/qa.ts, which drives the UI
  * through executeJavaScript and screenshots each step.
  */
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV || window.torc.qaEnabled) {
   ;(window as unknown as { __torc: unknown }).__torc = {
     store: useStore,
     report: () => {

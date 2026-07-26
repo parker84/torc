@@ -40,6 +40,8 @@ const api: TorcApi = {
   platform: process.platform,
   /** Dev-only override so QA can boot straight into a given theme. */
   devTheme: process.env.TORC_THEME,
+  /** True when a harness is driving, including in a packaged build. */
+  qaEnabled: Boolean(process.env.TORC_QA || process.env.TORC_DEMO),
   sessions: {
     create: (spec: SessionSpec) => ipcRenderer.invoke(IPC.sessionCreate, spec),
     write: (id, data) => ipcRenderer.send(IPC.sessionWrite, id, data),
@@ -51,6 +53,9 @@ const api: TorcApi = {
   home: () => ipcRenderer.invoke(IPC.appHome),
   defaultCwd: () => ipcRenderer.invoke(IPC.appDefaultCwd),
   pickDirectory: () => ipcRenderer.invoke(IPC.appPickDir),
+  loadState: () => ipcRenderer.invoke(IPC.appLoadState),
+  saveState: (state) => ipcRenderer.send(IPC.appSaveState, state),
+  onFocusPane: (cb) => subscribe<[string]>(IPC.focusPane, cb),
   onData: (cb) => subscribe<[string, string]>(IPC.sessionData, cb),
   onExit: (cb) => subscribe<[string, number]>(IPC.sessionExit, cb),
   onUpdate: (cb) => subscribe<[SessionSnapshot]>(IPC.sessionUpdate, cb),

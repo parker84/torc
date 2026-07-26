@@ -4,7 +4,22 @@ import { Rail } from './components/Rail'
 import { StatusBar } from './components/StatusBar'
 import { TerminalPane } from './components/TerminalPane'
 import { MissionControl } from './components/MissionControl'
+import { FindBar } from './components/FindBar'
 import { Palette } from './cmdk/Palette'
+
+function ErrorBanner() {
+  const error = useStore((s) => s.error)
+  const setError = useStore((s) => s.setError)
+  if (!error) return null
+  return (
+    <div className="flex shrink-0 items-start gap-2 border-b border-danger bg-danger/10 px-3 py-1.5 text-[11px] text-danger">
+      <span className="flex-1">{error}</span>
+      <button onClick={() => setError(null)} className="font-mono opacity-70 hover:opacity-100">
+        ✕
+      </button>
+    </div>
+  )
+}
 
 export function App() {
   const panes = useStore((s) => s.panes)
@@ -14,21 +29,40 @@ export function App() {
   // Menu accelerators are owned by the main process so they fire even while
   // xterm has keyboard focus. The renderer only reacts.
   useEffect(() => {
-    const { newSession, closePane, togglePalette, setView, cyclePane, cycleTheme } =
-      useStore.getState()
+    const {
+      newSession,
+      closePane,
+      togglePalette,
+      setView,
+      cyclePane,
+      cycleTheme,
+      focusNextAttention,
+      restartPane,
+      setFind,
+    } = useStore.getState()
     const offs = [
       window.torcMenu.on('new-terminal', () => void newSession({ kind: 'shell' })),
       window.torcMenu.on('new-agent', () => void newSession({ kind: 'claude' })),
       window.torcMenu.on('close-pane', () => void closePane()),
+      window.torcMenu.on('restart-pane', () => void restartPane()),
       window.torcMenu.on('palette', () => togglePalette()),
       window.torcMenu.on('next-agent', () => cyclePane(1)),
       window.torcMenu.on('prev-agent', () => cyclePane(-1)),
+      window.torcMenu.on('next-attention', () => focusNextAttention()),
+      window.torcMenu.on('find', () => setFind(true)),
       window.torcMenu.on('cycle-theme', () => cycleTheme()),
       window.torcMenu.on('mission-control', () =>
         setView(useStore.getState().view === 'mission' ? 'workspace' : 'mission'),
       ),
+      // Clicking a notification jumps straight to the agent that sent it.
+      window.torc.onFocusPane((paneId) => useStore.getState().setActive(paneId)),
     ]
     return () => offs.forEach((off) => off())
+  }, [])
+
+  // Bring back last session's panes.
+  useEffect(() => {
+    void useStore.getState().restore()
   }, [])
 
   // ⌘1-9 to jump between agents, ⌥⌘←/→ to cycle. Kept out of the menu so they
@@ -80,6 +114,8 @@ export function App() {
         </button>
       </header>
 
+      <ErrorBanner />
+
       <div className="flex min-h-0 flex-1">
         <Rail />
         <main className="relative min-w-0 flex-1">
@@ -97,6 +133,7 @@ export function App() {
           ))}
 
           {view === 'mission' && <MissionControl />}
+          <FindBar />
         </main>
       </div>
 

@@ -90,13 +90,35 @@ export const IPC = {
   appHome: 'app:home',
   appDefaultCwd: 'app:default-cwd',
   appPickDir: 'app:pick-dir',
+  appLoadState: 'app:load-state',
+  appSaveState: 'app:save-state',
+  /** main → renderer: the user clicked a notification. */
+  focusPane: 'app:focus-pane',
 } as const
+
+/** Layout restored on the next launch. */
+export interface SavedPane {
+  kind: AgentKind
+  cwd: string
+  title: string
+  claudeSessionId?: string
+  /** False when the transcript is gone, so resuming would fail. */
+  resumable?: boolean
+}
+
+export interface SavedState {
+  theme?: string
+  panes: SavedPane[]
+  activeIndex?: number
+}
 
 export interface TorcApi {
   brand: { name: string; id: string; tagline: string }
   platform: NodeJS.Platform
   /** Set by TORC_THEME in dev to boot into a specific theme. */
   devTheme?: string
+  /** True when TORC_QA/TORC_DEMO is set, so the packaged build stays testable. */
+  qaEnabled?: boolean
   sessions: {
     create(spec: SessionSpec): Promise<SessionSnapshot>
     write(id: string, data: string): void
@@ -109,6 +131,9 @@ export interface TorcApi {
   home(): Promise<string>
   /** Where to open an agent when the user hasn't said. */
   defaultCwd(): Promise<string>
+  loadState(): Promise<SavedState | undefined>
+  saveState(state: SavedState): void
+  onFocusPane(cb: (claudeSessionId: string) => void): () => void
   /** Native folder picker; resolves null if the user cancels. */
   pickDirectory(): Promise<string | null>
   /** Each returns an unsubscribe function. */

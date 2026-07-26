@@ -20,6 +20,10 @@ through terminal tabs.
 - **Live fleet monitoring.** Every agent's status, current tool call, git branch, token count and
   rough cost — and an amber **needs you** flag the moment an agent asks for permission.
 - **Mission Control** (`⌘0`) — every agent as a card, sorted so whoever needs you is first.
+- **It reaches you when you're elsewhere.** Native notification and a dock badge the moment an agent
+  blocks; clicking the notification jumps to that pane.
+- **Sessions survive a restart.** Layout and theme are saved, and agents come back via
+  `claude --resume` with their conversation and scrollback intact.
 - **⌘K for everything** — spawn, jump, switch themes, with `@` to jump straight to an agent.
 - **Three themes** — Notion (light), Synthwave (cyberpunk), Matrix.
 
@@ -41,13 +45,20 @@ npm run dev
 | `⇧⌘T` | New agent (Claude Code) |
 | `⌘K` | Command palette |
 | `⌘0` | Mission Control |
+| `⌘⇧A` | Jump to the next agent that needs you |
 | `⌘⇧[` / `⌘⇧]` | Previous / next agent |
 | `⌘1`–`⌘9` | Jump to agent |
+| `⌘F` | Find in the active terminal |
 | `⌃⌘T` | Cycle theme |
+| `⌘⇧R` | Restart pane (agents resume) |
 | `⌘W` | Close pane |
 
-`npm run dist` produces a real `Torc.app` (the dev build reports itself as "Electron" in the menu
-bar, because macOS reads that from Electron's own signed bundle).
+`npm run dist` produces a real `Torc.app` plus a DMG in `release/`. Use that rather than `npm run dev`
+for daily driving — the dev build reports itself as "Electron" in the menu bar, because macOS reads
+the app name from Electron's own signed bundle.
+
+State lives in `~/.torc/`: `state.json` (layout) and `hooks.settings.json` (generated, passed to each
+agent via `--settings`). Deleting either is safe.
 
 ## Development
 
@@ -64,8 +75,9 @@ The QA and demo harnesses drive the renderer through `window.__torc` and capture
 
 ## Status
 
-Early. Terminals, Cmd-K, themes and the monitoring layer work. Not yet built: split panes, session
-persistence across restarts, cross-agent context sharing, and adapters that give non-Claude agents
-the same monitoring depth.
+Usable. Terminals, ⌘K, themes, monitoring, notifications and session restore all work, verified
+against a real five-agent fleet and in the packaged build. Not yet built: split panes (one pane is
+visible at a time; the rail and Mission Control cover the rest), cross-agent context sharing, and
+adapters that give non-Claude agents the same monitoring depth.
 
 Apache-2.0.

@@ -8,6 +8,8 @@ import { SessionManager } from './pty/SessionManager'
 import { FleetMonitor } from './fleet/monitor'
 import { writeHooksSettings } from './fleet/hooksSettings'
 import { resolveUserEnv } from './env'
+import { clearBadge, updateAttention } from './notify'
+import { loadState, saveState } from './store/persist'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -33,7 +35,10 @@ function send(channel: string, ...args: unknown[]): void {
 const sessions = new SessionManager({
   onData: (id, chunk) => send(IPC.sessionData, id, chunk),
   onExit: (id, exitCode) => send(IPC.sessionExit, id, exitCode),
-  onUpdate: (snapshot) => send(IPC.sessionUpdate, snapshot),
+  onUpdate: (snapshot) => {
+    send(IPC.sessionUpdate, snapshot)
+    updateAttention(sessions.list(), mainWindow, (paneId) => send(IPC.focusPane, paneId))
+  },
   onCreated: (snapshot) => monitor.track(snapshot),
   onClosed: (id) => monitor.untrack(id),
 })
@@ -77,6 +82,8 @@ function createWindow(): void {
       },
     )
   }
+
+  mainWindow.on('focus', clearBadge)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
@@ -149,6 +156,11 @@ function buildMenu(): void {
           },
           { type: 'separator' },
           {
+            label: 'Restart Pane',
+            accelerator: 'Shift+CmdOrCtrl+R',
+            click: () => send('menu:restart-pane'),
+          },
+          {
             label: 'Close Pane',
             accelerator: 'CmdOrCtrl+W',
             click: () => send('menu:close-pane'),
@@ -170,6 +182,16 @@ function buildMenu(): void {
             // the same gesture, so it kept hiding the window instead.
             accelerator: 'CmdOrCtrl+0',
             click: () => send('menu:mission-control'),
+          },
+          {
+            label: 'Next Agent Needing You',
+            accelerator: 'Shift+CmdOrCtrl+A',
+            click: () => send('menu:next-attention'),
+          },
+          {
+            label: 'Find in Terminal…',
+            accelerator: 'CmdOrCtrl+F',
+            click: () => send('menu:find'),
           },
           { type: 'separator' },
           {
@@ -222,6 +244,8 @@ function registerIpc(): void {
   ipcMain.on(IPC.sessionMarkRead, (_e, id: string) => monitor.markRead(id))
   ipcMain.handle(IPC.appHome, () => homedir())
   ipcMain.handle(IPC.appDefaultCwd, () => launchCwd)
+  ipcMain.handle(IPC.appLoadState, () => loadState())
+  ipcMain.on(IPC.appSaveState, (_e, state: Parameters<typeof saveState>[0]) => saveState(state))
   ipcMain.handle(IPC.appPickDir, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],

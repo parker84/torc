@@ -9,6 +9,9 @@ directories:
 files:
   - out/**
   - package.json
+  # electron-vite bundles the renderer's deps, but externalizes main's — and
+  # node-pty is the one that has to exist on disk at runtime.
+  - node_modules/node-pty/**
 
 # node-pty ships a native binding that must not be packed into the asar.
 asarUnpack:

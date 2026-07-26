@@ -3,10 +3,12 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
+import { SearchAddon } from '@xterm/addon-search'
 import type { SessionSnapshot } from '@shared/types'
 import { THEMES } from '../themes'
 import { useStore } from '../state/store'
 import { attachWriter } from '../term/bus'
+import { registerSearch, unregisterSearch } from '../term/search'
 
 interface Props {
   pane: SessionSnapshot
@@ -38,9 +40,12 @@ export function TerminalPane({ pane, active }: Props) {
       theme: THEMES[useStore.getState().theme].terminal,
     })
     const fit = new FitAddon()
+    const search = new SearchAddon()
     term.loadAddon(fit)
+    term.loadAddon(search)
     term.loadAddon(new WebLinksAddon((_event, uri) => window.open(uri)))
     term.open(host)
+    registerSearch(pane.id, search)
 
     // WebGL keeps many panes cheap, but it can fail on some GPUs and its
     // context can be lost — fall back rather than showing a dead pane.
@@ -75,6 +80,7 @@ export function TerminalPane({ pane, active }: Props) {
       observer.disconnect()
       keystrokes.dispose()
       detach()
+      unregisterSearch(pane.id)
       term.dispose()
       termRef.current = null
       fitRef.current = null

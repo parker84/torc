@@ -64,10 +64,20 @@ const STEPS: Step[] = [
   { name: '10-matrix-palette', js: `window.__torc.store.getState().setPalette(true)`, waitMs: 700 },
 ]
 
+/**
+ * Restore mode opens nothing and just waits: the panes should come back from
+ * ~/.torc/state.json on their own, which is the thing being checked.
+ */
+const RESTORE_STEPS: Step[] = [
+  { name: 'restore-01-early', waitMs: 6000 },
+  { name: 'restore-02-settled', waitMs: 14000 },
+]
+
 export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
   mkdirSync(outDir, { recursive: true })
+  const steps = process.env.TORC_QA_MODE === 'restore' ? RESTORE_STEPS : STEPS
 
-  for (const step of STEPS) {
+  for (const step of steps) {
     if (step.js) {
       try {
         await win.webContents.executeJavaScript(step.js, true)

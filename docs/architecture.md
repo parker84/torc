@@ -88,6 +88,29 @@ in `claude agents --json` without a session id we assigned, so `FleetMonitor.onP
 **process ancestry**: walk the discovered pid's parent chain looking for the pane's PTY pid. Matching
 on cwd alone would be ambiguous the moment two panes sit in the same repo.
 
+## Persistence
+
+`store/persist.ts` mirrors the layout to `~/.torc/state.json` (write-then-rename, so a crash can't
+leave a truncated file). The renderer subscribes to its own store and saves on a 600ms debounce,
+comparing only the fields that affect a restore — a busy fleet updates snapshots several times a
+second and none of that churn matters.
+
+On restore, an agent is resumed with `claude --resume` **only if its transcript still exists**.
+Resuming a session with no transcript fails, which is the normal state for an agent that never took
+a turn — so those panes come back as a fresh agent in the right repo instead. Restoring the layout is
+the goal; a missing pane or a pane that dies on arrival are both worse.
+
+`restore()` guards on a module-level flag rather than `panes.length`, because it awaits and React's
+StrictMode invokes the mount effect twice — both calls would otherwise see an empty fleet and every
+pane would come back doubled.
+
+## Notifications
+
+`notify.ts` fires on the *transition* into needing attention, never repeatedly, and never while the
+window is focused — the pane you're already watching shouldn't interrupt you. The dock badge carries
+the waiting count and clears on window focus; clicking a notification focuses the window and jumps to
+that pane.
+
 ## Renderer notes
 
 - **Theme switching** is two layers of CSS custom properties: `--t-*` holds the active theme's raw
