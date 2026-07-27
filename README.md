@@ -6,9 +6,9 @@ which one is working and which one is blocked on you, and drive all of it from �
 Torc is **not** an editor. Keep editing in VS Code or Cursor. Torc is the layer above the terminal
 that the multi-agent workflow is missing.
 
-![Mission Control: five agents across five repos, one working and four waiting on you](docs/screenshots/mission-control-matrix.png)
+![Mission Control: five agents across five repos, three working and two waiting on you](docs/screenshots/mission-control-matrix.png)
 
-*Five agents across five repos — one still working, four blocked waiting on you. Every card carries
+*Five agents across five repos — three still working, two blocked waiting on you. Every card carries
 the live tool feed, git branch, token count and running cost. Nothing here is mocked.*
 
 ## Why
