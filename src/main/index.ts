@@ -90,6 +90,19 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
 
+    if (process.env.TORC_SCENARIOS && mainWindow) {
+      const win = mainWindow
+      void import('./scenarios').then(({ runScenarios }) =>
+        runScenarios(win, process.env.TORC_SCENARIOS!).then(() => {
+          if (process.env.TORC_QA_EXIT) {
+            sessions.disposeAll()
+            app.quit()
+          }
+        }),
+      )
+      return
+    }
+
     if (process.env.TORC_DEMO && mainWindow) {
       const win = mainWindow
       void import('./demo').then(({ runDemo }) =>

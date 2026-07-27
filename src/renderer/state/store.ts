@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { SessionSnapshot, SessionSpec } from '@shared/types'
 import { THEME_IDS, type ThemeId } from '../themes'
 import { forgetSession } from '../term/bus'
+import { previous, touch } from './recency'
 
 const THEME_KEY = 'torc:theme'
 
@@ -98,6 +99,9 @@ export const useStore = create<TorcState>((set, get) => ({
       set((s) => ({
         panes: [...s.panes, snapshot],
         activeId: snapshot.id,
+        // A new pane is the most recent thing you looked at, so ⌃⇥ from it goes
+        // back to whatever you were doing before you opened it.
+        recent: touch(s.recent, snapshot.id),
         lastCwd: resolved,
         view: 'workspace',
       }))
@@ -128,23 +132,24 @@ export const useStore = create<TorcState>((set, get) => ({
   setActive(id) {
     // Looking at a pane is what "reading" it means.
     window.torc.sessions.markRead(id)
-    set((s) => ({
-      activeId: id,
-      view: 'workspace',
-      recent: [id, ...s.recent.filter((r) => r !== id)].slice(0, 20),
-    }))
+    set((s) => ({ activeId: id, view: 'workspace', recent: touch(s.recent, id) }))
   },
 
   jumpBack() {
     const { recent, panes, activeId } = get()
-    // recent[0] is where we are, so the target is the next one still alive.
-    const target = recent.find((id) => id !== activeId && panes.some((p) => p.id === id))
+    const target = previous(
+      recent,
+      activeId,
+      panes.map((p) => p.id),
+    )
     if (target) get().setActive(target)
   },
 
   focusIndex(index) {
+    // Through setActive, so ⌘1-9 feeds the recency list that ⌃⇥ walks. Setting
+    // activeId directly here meant ⌃⇥ did nothing until you'd used the rail.
     const pane = get().panes[index]
-    if (pane) set({ activeId: pane.id, view: 'workspace' })
+    if (pane) get().setActive(pane.id)
   },
 
   cyclePane(delta) {
@@ -152,7 +157,7 @@ export const useStore = create<TorcState>((set, get) => ({
     if (panes.length === 0) return
     const current = panes.findIndex((p) => p.id === activeId)
     const next = (current + delta + panes.length) % panes.length
-    set({ activeId: panes[next].id, view: 'workspace' })
+    get().setActive(panes[next].id)
   },
 
   applyUpdate(snapshot) {
