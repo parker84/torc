@@ -17,7 +17,7 @@ export interface Command {
  * the top because flipping themes is a thing you do constantly and want to be
  * able to arrow through without typing.
  */
-export const GROUP_ORDER = ['Agents', 'Appearance', 'Session', 'Navigate', 'View'] as const
+export const GROUP_ORDER = ['Go', 'Agents', 'Appearance', 'Session', 'Navigate', 'View'] as const
 
 /**
  * Commands are rebuilt each time the palette opens so they can reflect current

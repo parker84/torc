@@ -35,6 +35,7 @@ export function Palette() {
   const open = useStore((s) => s.paletteOpen)
   const setPalette = useStore((s) => s.setPalette)
   const panes = useStore((s) => s.panes)
+  const view = useStore((s) => s.view)
   const setActive = useStore((s) => s.setActive)
 
   const input = useStore((s) => s.paletteQuery)
@@ -98,22 +99,28 @@ export function Palette() {
       run: () => setActive(pane.id),
     }))
 
-    // Mission Control is one of the places you jump *to*, so it belongs in the
-    // jump list alongside the panes — not only under commands.
-    const missionRow: Row = {
-      key: 'jump:mission',
-      title: 'Mission Control',
-      subtitle: 'The whole fleet at once',
-      group: 'Agents',
+    /*
+     * The single most useful thing in the palette is wherever you aren't: in the
+     * workspace that's Mission Control, and in Mission Control it's the way back.
+     * So it leads, with its shortcut visible — the palette doubles as the place
+     * you learn the chord.
+     */
+    const inMission = view === 'mission'
+    const viewToggleRow: Row = {
+      key: 'go:view',
+      title: inMission ? 'Back to terminals' : 'Mission Control',
+      subtitle: inMission ? 'The pane you were working in' : 'Every agent at once',
+      group: 'Go',
       hint: '⌘⏎',
       score: 0,
-      run: () => useStore.getState().setView('mission'),
+      run: () => useStore.getState().setView(inMission ? 'workspace' : 'mission'),
     }
 
     const candidates: Row[] =
       mode === 'panes'
-        ? [...paneRows, missionRow]
+        ? [viewToggleRow, ...paneRows]
         : [
+            viewToggleRow,
             ...paneRows,
             ...commands.map((c) => ({
               key: c.id,
@@ -147,7 +154,7 @@ export function Palette() {
       })
       .filter((row): row is Row => row !== null)
       .sort((a, b) => b.score - a.score)
-  }, [input, commands, panes, setActive])
+  }, [input, commands, panes, setActive, view])
 
   useEffect(() => {
     if (cursor >= rows.length) setCursor(Math.max(0, rows.length - 1))
@@ -241,6 +248,29 @@ export function Palette() {
               </div>
             )
           })}
+        </div>
+
+        {/* The palette is where the chords get learned, so the ones worth
+            knowing sit in view rather than only next to their own row. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-4 py-2 font-mono text-[10px] text-muted">
+          <span>
+            <kbd className="text-fg">⌘⏎</kbd> mission control
+          </span>
+          <span>
+            <kbd className="text-fg">⌃⇥</kbd> jump back
+          </span>
+          <span>
+            <kbd className="text-fg">⌘⇧A</kbd> needs you
+          </span>
+          <span>
+            <kbd className="text-fg">⌘T</kbd> terminal
+          </span>
+          <span>
+            <kbd className="text-fg">⌥⌘2</kbd> split
+          </span>
+          <span>
+            <kbd className="text-fg">⌘F</kbd> find
+          </span>
         </div>
       </div>
     </div>

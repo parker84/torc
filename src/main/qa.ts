@@ -101,6 +101,11 @@ const SPLIT_STEPS: Step[] = [
     waitMs: 2500,
   },
   {
+    name: 'split-04a-palette-default',
+    js: `window.__torc.store.getState().setPalette(true)`,
+    waitMs: 1200,
+  },
+  {
     name: 'split-04-broadcast-palette',
     js: `window.__torc.store.getState().setPalette(true); window.__torc.store.getState().setPaletteQuery('!what repo is this?')`,
     waitMs: 1500,
