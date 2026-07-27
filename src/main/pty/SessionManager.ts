@@ -34,6 +34,11 @@ export interface AgentLaunchConfig {
   settingsPath?: string
   /** Value exported as $TORC_HOOK_URL in every PTY. */
   hookUrl?: string
+  /**
+   * Directory holding the `claude` shim, prepended to each pane's PATH so a
+   * hand-launched agent gets the same hooks as one Torc spawned.
+   */
+  shimDir?: string
 }
 
 /** Lightweight view used for process-ancestry matching. */
@@ -89,6 +94,10 @@ export class SessionManager {
       cwd: spec.cwd,
       env: {
         ...env,
+        // The shim goes first so `claude` typed into a shell picks it up.
+        ...(this.launchConfig.shimDir
+          ? { PATH: `${this.launchConfig.shimDir}:${env.PATH ?? ''}` }
+          : {}),
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
         // Claude Code reads this to label itself; harmless for plain shells.
@@ -103,6 +112,18 @@ export class SessionManager {
     this.sessions.set(id, session)
 
     proc.onData((chunk) => this.enqueue(session, chunk))
+
+    // A login shell re-reads .zprofile/.zshrc, which typically prepends
+    // ~/.local/bin and so pushes our shim behind the real claude. PATH set at
+    // spawn time can't win that, so re-assert it once the rc files have run,
+    // then clear so the pane looks untouched.
+    if (spec.kind === 'shell' && this.launchConfig.shimDir) {
+      const shimDir = this.launchConfig.shimDir
+      setTimeout(() => {
+        if (!this.sessions.has(id)) return
+        proc.write(`export PATH="${shimDir}:$PATH"; clear\r`)
+      }, 700)
+    }
 
     proc.onExit(({ exitCode }) => {
       this.flush(session)

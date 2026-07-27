@@ -38,7 +38,7 @@ export function buildCommands(): Command[] {
     {
       id: 'session.new-agent',
       title: 'New agent',
-      subtitle: 'Claude Code in the current folder',
+      subtitle: 'Skips the shell and starts Claude Code directly',
       group: 'Session',
       keywords: ['claude', 'spawn', 'start'],
       hint: '⇧⌘T',
@@ -97,6 +97,15 @@ export function buildCommands(): Command[] {
       keywords: ['kill', 'quit', 'stop'],
       hint: '⌘W',
       run: () => useStore.getState().closePane(),
+    },
+    {
+      id: 'nav.back',
+      title: 'Jump back',
+      subtitle: 'The pane you were just in',
+      group: 'Navigate',
+      keywords: ['previous', 'last', 'toggle', 'recent'],
+      hint: '⌃⇥',
+      run: () => useStore.getState().jumpBack(),
     },
     {
       id: 'nav.attention',
@@ -184,7 +193,7 @@ export function buildCommands(): Command[] {
       subtitle: 'See every agent at once',
       group: 'View',
       keywords: ['dashboard', 'overview', 'grid', 'monitor'],
-      hint: '⌘0',
+      hint: '⌘⏎',
       run: () => {
         const { view, setView } = useStore.getState()
         setView(view === 'mission' ? 'workspace' : 'mission')

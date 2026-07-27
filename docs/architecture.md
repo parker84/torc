@@ -133,3 +133,20 @@ the edge scrolls the window instead of losing your place.
   themes never tears down scrollback.
 - **The output bus** (`renderer/term/bus.ts`) buffers per session id, because a PTY starts producing
   output before its React component has mounted.
+
+## One kind of pane
+
+`⌘T` opens a plain shell and you run `claude` in it — that should be monitored exactly like an agent
+Torc launched itself. Discovery already handles identity (poller + process ancestry), but hooks
+arrive via `--settings`, and there is no environment variable for that flag.
+
+So `fleet/claudeShim.ts` writes a tiny `claude` shim to `~/.torc/bin` that injects `--settings` and
+execs the real binary, resolved and hardcoded at write time so it can never exec itself. It
+deliberately leaves `--session-id` alone — that would collide with `--resume` and `--continue` — and
+steps aside entirely if you pass your own `--settings`.
+
+Prepending that directory to the PTY's `PATH` at spawn is not enough: a login shell re-reads
+`.zprofile`/`.zshrc`, which typically prepends `~/.local/bin` and pushes the shim behind the real
+binary. So `SessionManager` re-asserts the PATH once the rc files have run and clears the screen.
+Verified: a hand-typed `claude` now produces `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
+`PostToolUse` and `Stop` events.

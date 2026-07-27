@@ -112,11 +112,46 @@ const SPLIT_STEPS: Step[] = [
   },
 ]
 
+/**
+ * Proves the point of the claude shim: a `claude` typed by hand into a plain
+ * shell pane must end up monitored exactly like one Torc launched — same hooks,
+ * same status, same transcript.
+ */
+const SHIM_STEPS: Step[] = [
+  {
+    name: 'shim-01-shell',
+    js: `window.__torc.store.getState().newSession({ kind: 'shell' })`,
+    waitMs: 3000,
+  },
+  {
+    name: 'shim-02-typed-claude',
+    js: `(() => {
+      const s = window.__torc.store.getState();
+      s.sendToPane(s.activeId, 'claude');
+    })()`,
+    waitMs: 15000,
+  },
+  {
+    name: 'shim-03-prompted',
+    js: `(() => {
+      const s = window.__torc.store.getState();
+      s.sendToPane(s.activeId, 'list the files in this directory');
+    })()`,
+    waitMs: 25000,
+  },
+]
+
 export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
   mkdirSync(outDir, { recursive: true })
   const mode = process.env.TORC_QA_MODE
   const steps =
-    mode === 'restore' ? RESTORE_STEPS : mode === 'split' ? SPLIT_STEPS : STEPS
+    mode === 'restore'
+      ? RESTORE_STEPS
+      : mode === 'split'
+        ? SPLIT_STEPS
+        : mode === 'shim'
+          ? SHIM_STEPS
+          : STEPS
 
   for (const step of steps) {
     if (step.js) {

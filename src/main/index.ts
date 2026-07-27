@@ -8,6 +8,7 @@ import { IPC, type SessionSpec } from '@shared/types'
 import { SessionManager } from './pty/SessionManager'
 import { FleetMonitor } from './fleet/monitor'
 import { writeHooksSettings } from './fleet/hooksSettings'
+import { writeClaudeShim } from './fleet/claudeShim'
 import { resolveUserEnv } from './env'
 import { clearBadge, updateAttention } from './notify'
 import { loadState, saveState } from './store/persist'
@@ -179,10 +180,22 @@ function buildMenu(): void {
           },
           {
             label: 'Mission Control',
-            // Not ⇧⌘M: ⌘M is minimize on macOS and the shifted variant reads as
-            // the same gesture, so it kept hiding the window instead.
-            accelerator: 'CmdOrCtrl+0',
+            // One key that toggles both ways, within reach of the home row.
+            // (⌘0 still works as an alias, and esc leaves the overview —
+            // both handled in the renderer. Not ⇧⌘M: ⌘M is minimize.)
+            accelerator: 'CmdOrCtrl+Return',
             click: () => send('menu:mission-control'),
+          },
+          {
+            // The quickest jump there is: back to where you just were.
+            label: 'Jump Back',
+            accelerator: 'Control+Tab',
+            click: () => send('menu:jump-back'),
+          },
+          {
+            label: 'Quick Switch…',
+            accelerator: 'CmdOrCtrl+P',
+            click: () => send('menu:quick-switch'),
           },
           {
             label: 'Next Agent Needing You',
@@ -306,7 +319,14 @@ app.whenReady().then(() => {
   // $TORC_HOOK_URL and a settings file to report through.
   monitor
     .start()
-    .then(() => sessions.configureAgents({ settingsPath: writeHooksSettings(), hookUrl: monitor.hookUrl }))
+    .then(async () => {
+      const settingsPath = writeHooksSettings()
+      sessions.configureAgents({
+        settingsPath,
+        hookUrl: monitor.hookUrl,
+        shimDir: await writeClaudeShim(settingsPath),
+      })
+    })
     .catch((error) => console.error('torc: fleet monitor failed to start', error))
 
   createWindow()

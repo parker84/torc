@@ -44,6 +44,8 @@ interface TorcState {
   error: string | null
   /** Last cwd used to open an agent — the sensible default for the next one. */
   lastCwd: string | null
+  /** Pane ids, most recently focused first. Drives ⌃Tab. */
+  recent: string[]
 
   newSession(spec: Omit<SessionSpec, 'cwd'> & { cwd?: string }): Promise<void>
   closePane(id?: string): Promise<void>
@@ -59,6 +61,8 @@ interface TorcState {
   restore(): Promise<void>
   /** Focuses the next agent that needs you, wrapping around. */
   focusNextAttention(): void
+  /** Back to the pane you were just in — the two-place shuffle you do most. */
+  jumpBack(): void
   restartPane(id?: string): Promise<void>
   setPalette(open: boolean): void
   togglePalette(): void
@@ -83,6 +87,7 @@ export const useStore = create<TorcState>((set, get) => ({
   gridSize: loadGridSize(),
   error: null,
   lastCwd: null,
+  recent: [],
 
   async newSession(spec) {
     // Explicit choice → the folder you last opened an agent in → wherever Torc
@@ -123,7 +128,18 @@ export const useStore = create<TorcState>((set, get) => ({
   setActive(id) {
     // Looking at a pane is what "reading" it means.
     window.torc.sessions.markRead(id)
-    set({ activeId: id, view: 'workspace' })
+    set((s) => ({
+      activeId: id,
+      view: 'workspace',
+      recent: [id, ...s.recent.filter((r) => r !== id)].slice(0, 20),
+    }))
+  },
+
+  jumpBack() {
+    const { recent, panes, activeId } = get()
+    // recent[0] is where we are, so the target is the next one still alive.
+    const target = recent.find((id) => id !== activeId && panes.some((p) => p.id === id))
+    if (target) get().setActive(target)
   },
 
   focusIndex(index) {

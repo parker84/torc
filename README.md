@@ -6,6 +6,11 @@ which one is working and which one is blocked on you, and drive all of it from �
 Torc is **not** an editor. Keep editing in VS Code or Cursor. Torc is the layer above the terminal
 that the multi-agent workflow is missing.
 
+![Mission Control: five agents across five repos, one working and four waiting on you](docs/screenshots/mission-control-matrix.png)
+
+*Five agents across five repos — one still working, four blocked waiting on you. Every card carries
+the live tool feed, git branch, token count and running cost. Nothing here is mocked.*
+
 ## Why
 
 Running four or five agents in parallel doesn't make you four or five times faster — it makes you a
@@ -19,7 +24,7 @@ through terminal tabs.
   `codex`, plain `zsh`.
 - **Live fleet monitoring.** Every agent's status, current tool call, git branch, token count and
   rough cost — and an amber **needs you** flag the moment an agent asks for permission.
-- **Mission Control** (`⌘0`) — every agent as a card, sorted so whoever needs you is first.
+- **Mission Control** (`⌘⏎`) — every agent as a card, sorted so whoever needs you is first.
 - **It reaches you when you're elsewhere.** Native notification and a dock badge the moment an agent
   blocks; clicking the notification jumps to that pane.
 - **Sessions survive a restart.** Layout and theme are saved, and agents come back via
@@ -34,6 +39,26 @@ Monitoring reads Claude Code's own structured surfaces rather than scraping the 
 instant state changes, the session transcript for detail, and `claude agents --json` to reconcile and
 to discover agents you started by hand. See [docs/architecture.md](docs/architecture.md).
 
+## What it looks like
+
+One, two or four panes on screen, so you can watch a second agent while the first works. The focused
+pane is outlined:
+
+![Four terminals at once in the Synthwave theme](docs/screenshots/splits-synthwave.png)
+
+⌘K drives everything, with prefix modes. Here `!` broadcasts a prompt to the whole fleet — note it
+targets the one agent and skips the two plain shells:
+
+![Broadcasting a prompt to every agent from the command palette](docs/screenshots/palette-broadcast.png)
+
+Three themes, because this is where the day goes — Notion for daylight, Synthwave for the rest of it:
+
+| Notion | Synthwave |
+| --- | --- |
+| ![The Notion theme](docs/screenshots/mission-control-notion.png) | ![The Synthwave theme](docs/screenshots/mission-control-synthwave.png) |
+
+There's a Matrix theme too — that's the first screenshot.
+
 ## Running it
 
 ```bash
@@ -44,15 +69,17 @@ npm run dev
 
 | Key | Action |
 |---|---|
-| `⌘T` | New terminal (a login shell — run `claude` yourself and Torc will pick it up) |
-| `⇧⌘T` | New agent (Claude Code) |
+| `⌘T` | New terminal — run `claude` in it and Torc monitors it like any agent |
+| `⇧⌘T` | New agent (skips the shell and starts Claude Code directly) |
 | `⌘K` | Command palette |
-| `⌘0` | Mission Control |
+| `⌘⏎` | Mission Control (esc to leave, `⌘0` also works) |
 | `⌘⇧A` | Jump to the next agent that needs you |
 | `⌘⇧[` / `⌘⇧]` | Previous / next agent |
 | `⌘1`–`⌘9` | Jump to agent |
 | `⌘F` | Find in the active terminal |
 | `⌥⌘1` / `⌥⌘2` / `⌥⌘4` | One, two or four panes on screen |
+| `⌃⇥` | Jump back to the pane you were just in |
+| `⌘P` | Quick switch to an agent by name |
 | `⌃⌘T` | Cycle theme |
 | `⌘⇧R` | Restart pane (agents resume) |
 | `⌘W` | Close pane |
@@ -61,8 +88,9 @@ npm run dev
 for daily driving — the dev build reports itself as "Electron" in the menu bar, because macOS reads
 the app name from Electron's own signed bundle.
 
-State lives in `~/.torc/`: `state.json` (layout) and `hooks.settings.json` (generated, passed to each
-agent via `--settings`). Deleting either is safe.
+State lives in `~/.torc/`: `state.json` (layout), `hooks.settings.json` (generated, passed to each
+agent via `--settings`) and `bin/claude` (a shim that adds those hooks to a `claude` you launch
+yourself). All three are rewritten on launch; deleting them is safe.
 
 ## Development
 

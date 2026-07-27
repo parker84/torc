@@ -49,6 +49,12 @@ export function App() {
       window.torcMenu.on('next-agent', () => cyclePane(1)),
       window.torcMenu.on('prev-agent', () => cyclePane(-1)),
       window.torcMenu.on('next-attention', () => focusNextAttention()),
+      window.torcMenu.on('jump-back', () => useStore.getState().jumpBack()),
+      window.torcMenu.on('quick-switch', () => {
+        // Opens the palette already in jump-to-agent mode.
+        useStore.getState().setPalette(true)
+        useStore.getState().setPaletteQuery('@')
+      }),
       window.torcMenu.on('find', () => setFind(true)),
       window.torcMenu.on('grid-1', () => useStore.getState().setGridSize(1)),
       window.torcMenu.on('grid-2', () => useStore.getState().setGridSize(2)),
@@ -72,8 +78,26 @@ export function App() {
   // don't show up as menu items.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const state = useStore.getState()
+
+      // Esc leaves the overview — the natural way out of a modal view. Skipped
+      // while the palette or find bar owns the key.
+      if (event.key === 'Escape' && state.view === 'mission') {
+        if (state.paletteOpen || state.findOpen) return
+        event.preventDefault()
+        state.setView('workspace')
+        return
+      }
+
       if (!event.metaKey && !event.ctrlKey) return
-      const { focusIndex, cyclePane } = useStore.getState()
+      const { focusIndex, cyclePane } = state
+
+      // ⌘0 kept as an alias for Mission Control muscle memory.
+      if (event.key === '0' && !event.altKey) {
+        event.preventDefault()
+        state.setView(state.view === 'mission' ? 'workspace' : 'mission')
+        return
+      }
 
       if (/^[1-9]$/.test(event.key) && !event.altKey) {
         event.preventDefault()
@@ -126,7 +150,7 @@ export function App() {
             <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
               <p className="text-sm text-muted">Nothing running</p>
               <p className="font-mono text-[11px] text-muted opacity-70">
-                ⌘T terminal · ⇧⌘T agent · ⌘K commands · ⌘0 mission control
+                ⌘T terminal, then run claude · ⌘K commands · ⌘0 mission control
               </p>
             </div>
           )}

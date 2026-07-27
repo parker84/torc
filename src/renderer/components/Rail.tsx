@@ -36,9 +36,21 @@ export function Rail() {
                 isActive ? 'bg-accent-soft text-fg' : 'text-muted hover:bg-raised hover:text-fg'
               }`}
             >
+              {/* Always visible, not on hover: the number is how you jump. */}
+              <kbd
+                className={`w-3.5 shrink-0 text-center font-mono text-[10px] ${
+                  isActive ? 'text-fg' : 'text-muted'
+                }`}
+              >
+                {index < 9 ? index + 1 : ''}
+              </kbd>
               <StatusDot status={pane.status} needsAttention={pane.needsAttention} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-medium">{pane.title}</span>
+                {/* Claude's own title for the conversation says far more than
+                    "torc 2" — fall back to the pane name until it exists. */}
+                <span className="block truncate text-xs font-medium">
+                  {pane.aiTitle || pane.title}
+                </span>
                 <span
                   className={`block truncate text-[10px] ${
                     pane.needsAttention ? 'text-warn' : 'text-muted'
@@ -50,16 +62,16 @@ export function Rail() {
                   · {basename(pane.cwd)}
                 </span>
               </span>
-              {index < 9 && (
-                <kbd className="shrink-0 font-mono text-[10px] text-muted opacity-0 group-hover:opacity-100">
-                  ⌘{index + 1}
-                </kbd>
-              )}
             </button>
           )
         })}
       </div>
 
+      {/*
+        One way in. Run `claude` in a terminal and Torc picks it up with full
+        monitoring — the agent presets (worktree, plan mode) live in ⌘K, where
+        they belong, rather than presenting two kinds of pane up front.
+      */}
       <div className="flex flex-col border-t border-line p-1.5">
         <button
           onClick={() => void newSession({ kind: 'shell' })}
@@ -67,13 +79,6 @@ export function Rail() {
         >
           + New terminal
           <kbd className="ml-auto font-mono text-[10px] opacity-60">⌘T</kbd>
-        </button>
-        <button
-          onClick={() => void newSession({ kind: 'claude' })}
-          className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs text-muted transition-colors hover:bg-raised hover:text-fg"
-        >
-          + New agent
-          <kbd className="ml-auto font-mono text-[10px] opacity-60">⇧⌘T</kbd>
         </button>
       </div>
     </aside>
