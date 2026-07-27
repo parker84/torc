@@ -98,9 +98,21 @@ export function Palette() {
       run: () => setActive(pane.id),
     }))
 
+    // Mission Control is one of the places you jump *to*, so it belongs in the
+    // jump list alongside the panes — not only under commands.
+    const missionRow: Row = {
+      key: 'jump:mission',
+      title: 'Mission Control',
+      subtitle: 'The whole fleet at once',
+      group: 'Agents',
+      hint: '⌘⏎',
+      score: 0,
+      run: () => useStore.getState().setView('mission'),
+    }
+
     const candidates: Row[] =
       mode === 'panes'
-        ? paneRows
+        ? [...paneRows, missionRow]
         : [
             ...paneRows,
             ...commands.map((c) => ({

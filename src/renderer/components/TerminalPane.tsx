@@ -60,6 +60,17 @@ export function TerminalPane({ pane, active, visible }: Props) {
       // DOM renderer is the fallback; nothing to do.
     }
 
+    /*
+     * ⌘-chords belong to the app, not the pty. Without this xterm consumes ⌘⏎ —
+     * it looks like a plain Enter to the terminal — so Mission Control could
+     * never be toggled from inside a focused agent. Returning false makes xterm
+     * ignore the event entirely so it bubbles to the window handler.
+     *
+     * Only the Cmd modifier: Ctrl combos (⌃C to interrupt) and Alt combos must
+     * still reach the agent.
+     */
+    term.attachCustomKeyEventHandler((event) => !event.metaKey)
+
     termRef.current = term
     fitRef.current = fit
 
