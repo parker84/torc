@@ -11,7 +11,7 @@ main process (node)
         ↕ typed IPC (contextBridge preload)
 renderer (React 19 + zustand)
 ├─ Rail · TerminalPane (xterm.js + WebGL)
-├─ MissionControl (⌘0)
+├─ MissionControl (⌘⏎)
 └─ ⌘K palette + command registry
 ```
 
