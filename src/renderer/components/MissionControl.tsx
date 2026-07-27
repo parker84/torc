@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SessionSnapshot } from '@shared/types'
 import { useStore } from '../state/store'
 import { StatusDot, statusLabel } from './StatusDot'
@@ -92,10 +92,22 @@ function AgentCard({ pane, now }: { pane: SessionSnapshot; now: number }) {
 export function MissionControl() {
   const panes = useStore((s) => s.panes)
   const [now, setNow] = useState(() => Date.now())
+  const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  /*
+   * Take keyboard focus off the terminal. Without this the hidden xterm textarea
+   * keeps it, swallows esc (it means "interrupt" to an agent) and the overview
+   * can't be dismissed — while stray keystrokes would also leak into whichever
+   * agent happened to be focused.
+   */
+  useEffect(() => {
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    rootRef.current?.focus()
   }, [])
 
   const sorted = [...panes].sort(byAttention)
@@ -103,7 +115,11 @@ export function MissionControl() {
   const working = panes.filter((p) => p.status === 'working').length
 
   return (
-    <div className="absolute inset-0 z-20 overflow-y-auto bg-bg p-4">
+    <div
+      ref={rootRef}
+      tabIndex={-1}
+      className="absolute inset-0 z-20 overflow-y-auto bg-bg p-4 outline-none"
+    >
       <div className="mb-3 flex items-baseline gap-3">
         <h1 className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">
           Mission Control

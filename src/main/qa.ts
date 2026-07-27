@@ -101,6 +101,11 @@ const SPLIT_STEPS: Step[] = [
     waitMs: 2500,
   },
   {
+    name: 'split-04a-palette-default',
+    js: `window.__torc.store.getState().setPalette(true)`,
+    waitMs: 1200,
+  },
+  {
     name: 'split-04-broadcast-palette',
     js: `window.__torc.store.getState().setPalette(true); window.__torc.store.getState().setPaletteQuery('!what repo is this?')`,
     waitMs: 1500,
@@ -141,6 +146,69 @@ const SHIM_STEPS: Step[] = [
   },
 ]
 
+/**
+ * Checks that app-level chords still work while a terminal has keyboard focus —
+ * xterm attaches its own keydown handler, and if it consumes ⌘-combos the app
+ * never sees them.
+ */
+async function checkKeys(win: BrowserWindow): Promise<void> {
+  const { Menu } = await import('electron')
+  const view = () =>
+    win.webContents.executeJavaScript(`window.__torc.store.getState().view`, true)
+
+  const items = (Menu.getApplicationMenu()?.items ?? [])
+    .flatMap((item) => item.submenu?.items ?? [])
+    .filter((item) => item.accelerator)
+    .map((item) => `${item.label}=${item.accelerator}`)
+  console.log(`[keys] registered: ${items.join(' | ')}`)
+
+  // Focus the terminal the way a user would, then fire the chords at it.
+  await win.webContents.executeJavaScript(
+    `document.querySelector('.xterm-helper-textarea')?.focus(); document.activeElement?.className`,
+    true,
+  )
+  const focused = await win.webContents.executeJavaScript(
+    `document.activeElement?.className ?? 'none'`,
+    true,
+  )
+  console.log(`[keys] focused element: ${focused}`)
+
+  console.log(`[keys] view before: ${await view()}`)
+
+  // ⌘⏎ is the primary binding, so test it from a focused terminal specifically.
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return', modifiers: ['meta'] })
+  await delay(800)
+  console.log(`[keys] view after cmd+enter: ${await view()}`)
+
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return', modifiers: ['meta'] })
+  await delay(800)
+  console.log(`[keys] view after cmd+enter again (expect workspace): ${await view()}`)
+
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: '0', modifiers: ['meta'] })
+  await delay(600)
+  console.log(`[keys] view after cmd+0: ${await view()}`)
+
+  console.log(
+    `[keys] focus while in mission: ${await win.webContents.executeJavaScript(
+      `document.activeElement?.className ?? 'none'`,
+      true,
+    )}`,
+  )
+
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape', modifiers: [] })
+  await delay(600)
+  console.log(`[keys] view after injected esc: ${await view()}`)
+
+  // A dispatched DOM event tests the handler itself, separating an app bug from
+  // a quirk of how sendInputEvent is delivered.
+  await win.webContents.executeJavaScript(
+    `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+    true,
+  )
+  await delay(400)
+  console.log(`[keys] view after dispatched esc: ${await view()}`)
+}
+
 export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
   mkdirSync(outDir, { recursive: true })
   const mode = process.env.TORC_QA_MODE
@@ -151,7 +219,15 @@ export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
         ? SPLIT_STEPS
         : mode === 'shim'
           ? SHIM_STEPS
-          : STEPS
+          : mode === 'keys'
+            ? [
+                {
+                  name: 'keys-01-agent',
+                  js: `window.__torc.store.getState().newSession({ kind: 'claude' })`,
+                  waitMs: 12000,
+                },
+              ]
+            : STEPS
 
   for (const step of steps) {
     if (step.js) {
@@ -179,6 +255,7 @@ export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
   }
 
   if (mode === 'split') await checkNotification(win)
+  if (mode === 'keys') await checkKeys(win)
 }
 
 /**

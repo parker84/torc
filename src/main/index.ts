@@ -181,9 +181,13 @@ function buildMenu(): void {
           {
             label: 'Mission Control',
             // One key that toggles both ways, within reach of the home row.
-            // (⌘0 still works as an alias, and esc leaves the overview —
-            // both handled in the renderer. Not ⇧⌘M: ⌘M is minimize.)
+            // (Not ⇧⌘M: ⌘M is minimize on macOS.)
             accelerator: 'CmdOrCtrl+Return',
+            // Shown in the menu but handled in the renderer: a registered
+            // accelerator plus a renderer handler would toggle twice and cancel
+            // itself out, and the renderer path is the one proven to fire while
+            // xterm holds keyboard focus.
+            registerAccelerator: false,
             click: () => send('menu:mission-control'),
           },
           {

@@ -92,8 +92,10 @@ export function App() {
       if (!event.metaKey && !event.ctrlKey) return
       const { focusIndex, cyclePane } = state
 
-      // ⌘0 kept as an alias for Mission Control muscle memory.
-      if (event.key === '0' && !event.altKey) {
+      // Mission Control: ⌘⏎ primary, ⌘0 alias. Handled here rather than as a
+      // menu accelerator because this path is proven to fire while a terminal
+      // holds keyboard focus.
+      if ((event.key === 'Enter' || event.key === '0') && !event.altKey && !event.shiftKey) {
         event.preventDefault()
         state.setView(state.view === 'mission' ? 'workspace' : 'mission')
         return

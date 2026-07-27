@@ -46,8 +46,13 @@ pane is outlined:
 
 ![Four terminals at once in the Synthwave theme](docs/screenshots/splits-synthwave.png)
 
-⌘K drives everything, with prefix modes. Here `!` broadcasts a prompt to the whole fleet — note it
-targets the one agent and skips the two plain shells:
+⌘K leads with whichever view you're *not* in, numbers every agent, and keeps the shortcuts worth
+knowing along the bottom — so the palette is also where you learn the keyboard:
+
+![The command palette, led by Mission Control with its shortcut](docs/screenshots/palette.png)
+
+It has prefix modes too. Here `!` broadcasts a prompt to the whole fleet — note it targets the one
+agent and skips the two plain shells:
 
 ![Broadcasting a prompt to every agent from the command palette](docs/screenshots/palette-broadcast.png)
 
