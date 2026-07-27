@@ -51,3 +51,8 @@ export function findInPane(
 export function clearSearch(paneId: string): void {
   addons.get(paneId)?.clearDecorations()
 }
+
+/** Exposed for the QA harness, which asserts that find actually matches. */
+if (import.meta.env.DEV || window.torc?.qaEnabled) {
+  ;(window as unknown as { __torcSearch: unknown }).__torcSearch = { findInPane, clearSearch }
+}

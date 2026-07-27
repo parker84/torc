@@ -107,6 +107,8 @@ TORC_DEMO=/tmp/demo npm run dev           # launches a real fleet across repos, 
 TORC_DEBUG_HOOKS=1 npm run dev            # log every hook event received
 TORC_QA_MODE=restore npm run dev          # check session restore
 TORC_QA_MODE=split npm run dev            # check splits, broadcast, notifications
+TORC_QA_MODE=keys npm run dev             # check shortcuts from a focused terminal
+TORC_SCENARIOS=/tmp/scen npm run dev      # 23 assertions over real user flows
 ```
 
 The QA and demo harnesses drive the renderer through `window.__torc` and capture with
