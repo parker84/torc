@@ -47,12 +47,12 @@ const STEPS: Step[] = [
     waitMs: 700,
   },
   {
-    name: '07-synthwave',
-    js: `window.__torc.store.getState().setTheme('synthwave'); window.__torc.store.getState().setView('workspace')`,
+    name: '07-cyberpunk',
+    js: `window.__torc.store.getState().setTheme('cyberpunk'); window.__torc.store.getState().setView('workspace')`,
     waitMs: 900,
   },
   {
-    name: '08-synthwave-mission',
+    name: '08-cyberpunk-mission',
     js: `window.__torc.store.getState().setView('mission')`,
     waitMs: 700,
   },
@@ -86,7 +86,7 @@ const SPLIT_STEPS: Step[] = [
       await store.newSession({ kind: 'shell' });
       await store.newSession({ kind: 'shell' });
       await store.newSession({ kind: 'claude' });
-      window.__torc.store.getState().setTheme('synthwave');
+      window.__torc.store.getState().setTheme('cyberpunk');
     })()`,
     waitMs: 12000,
   },

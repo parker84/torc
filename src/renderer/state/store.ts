@@ -1,14 +1,10 @@
 import { create } from 'zustand'
 import type { SessionSnapshot, SessionSpec } from '@shared/types'
-import { THEME_IDS, type ThemeId } from '../themes'
+import { migrateThemeId, THEME_IDS, type ThemeId } from '../themes'
 import { forgetSession } from '../term/bus'
 import { previous, touch } from './recency'
 
 const THEME_KEY = 'torc:theme'
-
-function isThemeId(value: unknown): value is ThemeId {
-  return typeof value === 'string' && (THEME_IDS as readonly string[]).includes(value)
-}
 
 function loadGridSize(): GridSize {
   const stored = Number(localStorage.getItem(GRID_KEY))
@@ -17,9 +13,13 @@ function loadGridSize(): GridSize {
 
 function loadTheme(): ThemeId {
   // TORC_THEME wins in dev so QA can boot straight into a given theme.
-  if (isThemeId(window.torc.devTheme)) return window.torc.devTheme
-  const stored = localStorage.getItem(THEME_KEY)
-  return isThemeId(stored) ? stored : 'notion'
+  // migrateThemeId also maps the retired "synthwave" id onto "cyberpunk", so a
+  // saved preference survives the rename.
+  return (
+    migrateThemeId(window.torc.devTheme) ??
+    migrateThemeId(localStorage.getItem(THEME_KEY)) ??
+    'notion'
+  )
 }
 
 export type View = 'workspace' | 'mission'
@@ -200,7 +200,8 @@ export const useStore = create<TorcState>((set, get) => ({
     const saved = await window.torc.loadState()
     if (!saved || saved.panes.length === 0) return
 
-    if (isThemeId(saved.theme)) get().setTheme(saved.theme)
+    const savedTheme = migrateThemeId(saved.theme)
+    if (savedTheme) get().setTheme(savedTheme)
 
     // Sequential, not parallel: five Claude Code boots at once thrash the CPU
     // and the first pane should be usable immediately.

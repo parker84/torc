@@ -1,12 +1,14 @@
 import type { AgentStatus } from '@shared/types'
 
+// A live agent glows; a dormant one doesn't. In the light theme every glow
+// resolves to none, so the classes are safe to apply unconditionally.
 const STYLES: Record<AgentStatus, { className: string; label: string }> = {
   launching: { className: 'bg-muted animate-pulse', label: 'starting' },
   idle: { className: 'bg-muted/60', label: 'idle' },
-  working: { className: 'bg-ok animate-pulse', label: 'working' },
-  'needs-input': { className: 'bg-warn', label: 'needs you' },
+  working: { className: 'bg-ok neon-ok animate-pulse', label: 'working' },
+  'needs-input': { className: 'bg-warn neon-warn', label: 'needs you' },
   exited: { className: 'bg-muted/40', label: 'exited' },
-  error: { className: 'bg-danger', label: 'error' },
+  error: { className: 'bg-danger neon-warn', label: 'error' },
 }
 
 /**

@@ -148,12 +148,12 @@ export async function runDemo(win: BrowserWindow, outDir: string): Promise<void>
       waitMs: 6000,
     },
     {
-      name: 'demo-05-synthwave-mission',
-      js: `window.__torc.store.getState().setTheme('synthwave'); window.__torc.store.getState().setView('mission')`,
+      name: 'demo-05-cyberpunk-mission',
+      js: `window.__torc.store.getState().setTheme('cyberpunk'); window.__torc.store.getState().setView('mission')`,
       waitMs: 20000,
     },
     {
-      name: 'demo-06-synthwave-palette',
+      name: 'demo-06-cyberpunk-palette',
       js: `window.__torc.store.getState().setView('workspace'); window.__torc.store.getState().setPalette(true)`,
       waitMs: 1200,
     },

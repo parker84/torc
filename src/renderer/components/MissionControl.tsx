@@ -35,8 +35,8 @@ function AgentCard({ pane, now }: { pane: SessionSnapshot; now: number }) {
       onClick={() => setActive(pane.id)}
       className={`flex flex-col gap-2 rounded-lg border p-3 text-left transition-colors ${
         pane.needsAttention
-          ? 'border-warn bg-raised'
-          : 'border-line bg-surface hover:border-muted/50'
+          ? 'border-warn bg-raised neon-warn'
+          : 'border-line bg-surface hover:border-accent/40'
       }`}
     >
       <div className="flex items-center gap-2">

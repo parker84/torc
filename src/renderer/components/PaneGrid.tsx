@@ -41,7 +41,7 @@ export function PaneGrid({ panes }: { panes: SessionSnapshot[] }) {
             {gridSize > 1 && slot && (
               <div
                 className={`pointer-events-none absolute inset-0 z-20 border-2 ${
-                  isActive ? 'border-accent/60' : 'border-transparent'
+                  isActive ? 'border-accent/70 neon' : 'border-transparent'
                 }`}
               />
             )}
