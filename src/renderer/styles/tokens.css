@@ -41,25 +41,36 @@
   --t-danger: #eb5757;
   --t-ok: #0f7b6c;
   --t-shadow: 0 1px 2px rgb(15 15 15 / 8%), 0 4px 12px rgb(15 15 15 / 6%);
+  /* A light theme opts out of every glow. */
   --t-glow: none;
+  --t-glow-box: none;
+  --t-glow-ok: none;
+  --t-glow-warn: none;
 }
 
-/* ── synthwave (cyberpunk) ───────────────────────────────────────────────── */
-:root[data-theme='synthwave'] {
+/* ── cyberpunk ───────────────────────────────────────────────────────────────
+   Modelled on the SynthWave-family VS Code themes: near-black violet chrome,
+   panes a shade lighter, hot magenta as the single accent, and neon bloom on
+   anything live. The bloom is the signature — without it this is just a purple
+   dark theme. */
+:root[data-theme='cyberpunk'] {
   color-scheme: dark;
-  --t-bg: #1a1425;
-  --t-surface: #201a2b;
+  --t-bg: #17111f;
+  --t-surface: #1d1729;
   --t-raised: #2a1f3d;
-  --t-line: #34294f;
-  --t-fg: #e6dcf5;
-  --t-muted: #7a6f9b;
-  --t-accent: #f92aad;
+  --t-line: #3a2c57;
+  --t-fg: #f0e6ff;
+  --t-muted: #8a7cb0;
+  --t-accent: #ff2fb3;
   --t-accent-soft: #3d2a5e;
   --t-warn: #fede5d;
   --t-danger: #fe4450;
   --t-ok: #72f1b8;
-  --t-shadow: 0 2px 24px rgb(249 42 173 / 12%);
-  --t-glow: 0 0 8px rgb(249 42 173 / 45%);
+  --t-shadow: 0 2px 32px rgb(255 47 179 / 18%);
+  --t-glow: 0 0 10px rgb(255 47 179 / 55%);
+  --t-glow-box: 0 0 12px rgb(255 47 179 / 40%);
+  --t-glow-ok: 0 0 10px rgb(114 241 184 / 55%);
+  --t-glow-warn: 0 0 10px rgb(254 222 93 / 55%);
 }
 
 /* ── matrix ──────────────────────────────────────────────────────────────── */
@@ -77,7 +88,10 @@
   --t-danger: #ff3333;
   --t-ok: #00ff41;
   --t-shadow: 0 2px 24px rgb(0 255 65 / 12%);
-  --t-glow: 0 0 8px rgb(0 255 65 / 40%);
+  --t-glow: 0 0 8px rgb(0 255 65 / 45%);
+  --t-glow-box: 0 0 12px rgb(0 255 65 / 30%);
+  --t-glow-ok: 0 0 10px rgb(0 255 65 / 50%);
+  --t-glow-warn: 0 0 10px rgb(255 176 0 / 50%);
 }
 
 html,
@@ -95,10 +109,19 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The matrix and synthwave themes are the ones that want a glow; notion opts
-   out by setting --t-glow to none. */
+/* Cyberpunk and matrix want neon bloom; notion sets every glow to none, so these
+   classes can be applied unconditionally. */
 .glow {
   text-shadow: var(--t-glow);
+}
+.neon {
+  box-shadow: var(--t-glow-box);
+}
+.neon-ok {
+  box-shadow: var(--t-glow-ok);
+}
+.neon-warn {
+  box-shadow: var(--t-glow-warn);
 }
 
 .drag-region {

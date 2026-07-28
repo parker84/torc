@@ -1,5 +1,5 @@
 import { useStore } from '../state/store'
-import { THEME_LIST } from '../themes'
+import { THEME_IDS, THEMES, THEME_LIST } from '../themes'
 
 export interface Command {
   id: string
@@ -202,7 +202,8 @@ export function buildCommands(): Command[] {
     {
       id: 'theme.cycle',
       title: 'Cycle theme',
-      subtitle: 'Notion → Synthwave → Matrix',
+      // Derived, so renaming a theme can't leave a stale label here.
+      subtitle: THEME_IDS.map((id) => THEMES[id].label).join(' → '),
       group: 'Appearance',
       keywords: ['next', 'toggle', 'switch', 'color'],
       hint: '⌃⌘T',

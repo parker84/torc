@@ -33,7 +33,7 @@ through terminal tabs.
   first works.
 - **⌘K for everything** — prefix modes: `@` jump to an agent, `/` send a slash command to the focused
   pane, `!` broadcast a prompt to the whole fleet.
-- **Three themes** — Notion (light), Synthwave (cyberpunk), Matrix.
+- **Three themes** — Notion (light), Cyberpunk, Matrix.
 
 Monitoring reads Claude Code's own structured surfaces rather than scraping the terminal: hooks for
 instant state changes, the session transcript for detail, and `claude agents --json` to reconcile and
@@ -44,7 +44,7 @@ to discover agents you started by hand. See [docs/architecture.md](docs/architec
 One, two or four panes on screen, so you can watch a second agent while the first works. The focused
 pane is outlined:
 
-![Four terminals at once in the Synthwave theme](docs/screenshots/splits-synthwave.png)
+![Four terminals at once in the Cyberpunk theme](docs/screenshots/splits-cyberpunk.png)
 
 ⌘K leads with whichever view you're *not* in, numbers every agent, and keeps the shortcuts worth
 knowing along the bottom — so the palette is also where you learn the keyboard:
@@ -56,21 +56,80 @@ agent and skips the two plain shells:
 
 ![Broadcasting a prompt to every agent from the command palette](docs/screenshots/palette-broadcast.png)
 
-Three themes, because this is where the day goes — Notion for daylight, Synthwave for the rest of it:
+Three themes, because this is where the day goes — Notion for daylight, Cyberpunk for the rest of it:
 
-| Notion | Synthwave |
+| Notion | Cyberpunk |
 | --- | --- |
-| ![The Notion theme](docs/screenshots/mission-control-notion.png) | ![The Synthwave theme](docs/screenshots/mission-control-synthwave.png) |
+| ![The Notion theme](docs/screenshots/mission-control-notion.png) | ![The Cyberpunk theme](docs/screenshots/mission-control-cyberpunk.png) |
 
 There's a Matrix theme too — that's the first screenshot.
 
-## Running it
+## Getting started
+
+**You'll need:** macOS on Apple silicon, Node 20+, and [Claude Code](https://claude.com/claude-code)
+installed and signed in. Check the last one first — Torc drives the `claude` binary, so if
+`claude --version` doesn't work in your terminal, nothing else will:
 
 ```bash
-npm install          # rebuilds node-pty against Electron
-npm run icon         # generates build/icon.icns (no image deps needed)
-npm run dev
+claude --version
+node --version
 ```
+
+Then:
+
+```bash
+git clone https://github.com/parker84/torc.git
+cd torc
+npm install        # also rebuilds node-pty against Electron's ABI
+npm run icon       # generates build/icon.icns from assets/logo.png
+npm run dev        # dev build, hot reloads
+```
+
+For daily use, build the real app instead — you get the proper name and icon, and it launches from
+Spotlight:
+
+```bash
+npm run dist                          # writes release/Torc.app and a .dmg
+cp -R release/mac-arm64/Torc.app /Applications/
+```
+
+The build is unsigned, so the first launch may need a right-click → **Open** (or
+System Settings → Privacy & Security → Open Anyway). macOS may also ask to allow notifications —
+say yes, that's how Torc tells you an agent is blocked.
+
+### First run
+
+1. `⌘T` opens a terminal in the folder Torc was launched from.
+2. Type `claude` and hit enter. Within a couple of seconds the rail shows it as an agent, with its
+   status, branch, token count and cost.
+3. Give it something slow to do, then hit `⌘⏎` to watch the whole fleet.
+4. `⌘K` for everything else.
+
+You don't have to launch agents through Torc — a `claude` you start yourself in any Torc terminal is
+picked up automatically, with the same monitoring. (`⇧⌘T` skips the shell if you'd rather.)
+
+### Where state lives
+
+Everything is under `~/.torc/`, all of it regenerated on launch and safe to delete:
+
+| Path | What |
+|---|---|
+| `state.json` | Open panes, active pane and theme, restored on next launch |
+| `hooks.settings.json` | Hook config passed to each agent via `claude --settings` |
+| `bin/claude` | Shim that adds those hooks to a `claude` you launch yourself |
+
+Torc never edits your `~/.claude/settings.json`.
+
+### Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| Panes open but `claude` isn't found | `claude` isn't on your login shell's `PATH`. Torc reads the environment from `$SHELL -l`, so check `claude --version` works in a fresh login shell. |
+| An agent shows no tokens or title | Its transcript isn't being written. Most often you launched Torc from inside a Claude Code session in an older build; relaunch from Finder or a plain terminal. |
+| No notifications | System Settings → Notifications → Torc. Unsigned builds sometimes don't prompt. |
+| `npm install` fails building node-pty | Xcode command line tools missing: `xcode-select --install`. |
+
+### Shortcuts
 
 | Key | Action |
 |---|---|
@@ -89,13 +148,8 @@ npm run dev
 | `⌘⇧R` | Restart pane (agents resume) |
 | `⌘W` | Close pane |
 
-`npm run dist` produces a real `Torc.app` plus a DMG in `release/`. Use that rather than `npm run dev`
-for daily driving — the dev build reports itself as "Electron" in the menu bar, because macOS reads
-the app name from Electron's own signed bundle.
-
-State lives in `~/.torc/`: `state.json` (layout), `hooks.settings.json` (generated, passed to each
-agent via `--settings`) and `bin/claude` (a shim that adds those hooks to a `claude` you launch
-yourself). All three are rewritten on launch; deleting them is safe.
+One note on the dev build: it reports itself as "Electron" in the menu bar, because macOS takes the
+app name from Electron's own signed bundle. `npm run dist` is the one that says Torc.
 
 ## Development
 

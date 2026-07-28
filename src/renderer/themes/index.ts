@@ -1,6 +1,6 @@
 import type { ITheme } from '@xterm/xterm'
 
-export type ThemeId = 'notion' | 'synthwave' | 'matrix'
+export type ThemeId = 'notion' | 'cyberpunk' | 'matrix'
 
 export interface ThemeDef {
   id: ThemeId
@@ -40,32 +40,34 @@ export const THEMES: Record<ThemeId, ThemeDef> = {
       brightWhite: '#37352f',
     },
   },
-  synthwave: {
-    id: 'synthwave',
-    label: 'Synthwave',
-    hint: 'Cyberpunk purple and magenta',
+  cyberpunk: {
+    id: 'cyberpunk',
+    label: 'Cyberpunk',
+    hint: 'Neon magenta on deep purple',
     terminal: {
-      background: '#221b2e',
-      foreground: '#e6dcf5',
-      cursor: '#f92aad',
-      cursorAccent: '#221b2e',
-      selectionBackground: '#3d2a5e',
+      // Editor sits a shade lighter than the chrome, as in the VS Code theme
+      // this is modelled on — it's what makes the panes read as inset panels.
+      background: '#241b34',
+      foreground: '#f0e6ff',
+      cursor: '#ff2fb3',
+      cursorAccent: '#241b34',
+      selectionBackground: '#46316b',
       selectionForeground: '#ffffff',
-      black: '#241b2f',
+      black: '#241b34',
       red: '#fe4450',
       green: '#72f1b8',
       yellow: '#fede5d',
       blue: '#36f9f6',
       magenta: '#ff7edb',
       cyan: '#36f9f6',
-      white: '#e6dcf5',
-      brightBlack: '#6c6783',
-      brightRed: '#fe4450',
-      brightGreen: '#72f1b8',
+      white: '#f0e6ff',
+      brightBlack: '#7a6ba3',
+      brightRed: '#ff5f6d',
+      brightGreen: '#8fffcc',
       brightYellow: '#ff8b39',
-      brightBlue: '#36f9f6',
-      brightMagenta: '#f92aad',
-      brightCyan: '#36f9f6',
+      brightBlue: '#5cfbff',
+      brightMagenta: '#ff2fb3',
+      brightCyan: '#7dfdff',
       brightWhite: '#ffffff',
     },
   },
@@ -103,4 +105,13 @@ export const THEMES: Record<ThemeId, ThemeDef> = {
 export const THEME_LIST = Object.values(THEMES)
 
 /** Cycle order for ⌃⌘T: light → cyberpunk → matrix. */
-export const THEME_IDS = ['notion', 'synthwave', 'matrix'] as const
+export const THEME_IDS = ['notion', 'cyberpunk', 'matrix'] as const
+
+/** Renamed from "synthwave"; keep old persisted values working. */
+const RENAMED: Record<string, ThemeId> = { synthwave: 'cyberpunk' }
+
+export function migrateThemeId(value: unknown): ThemeId | undefined {
+  if (typeof value !== 'string') return undefined
+  if (value in RENAMED) return RENAMED[value]
+  return (THEME_IDS as readonly string[]).includes(value) ? (value as ThemeId) : undefined
+}
