@@ -4,7 +4,9 @@ import type { IPty } from 'node-pty'
 import type { SessionSnapshot, SessionSpec } from '@shared/types'
 import { HOOK_URL_ENV } from '@shared/brand'
 import { resolveUserEnv } from '../env'
+import { probeCwds } from './cwdProbe'
 import { planLaunch } from './launchArgs'
+import { isAutoTitle, titleFor, uniqueTitle } from './paneTitle'
 
 // node-pty is a CommonJS native module and main is built as ESM; createRequire
 // avoids the named-export interop guesswork.
@@ -17,6 +19,11 @@ interface Session {
   /** Coalescing buffer — see flush(). */
   pending: string[]
   flushTimer?: NodeJS.Timeout
+  /**
+   * True while the title is Torc's own guess at a name, which is what lets it
+   * follow the pane into a new directory. A title the user typed stays put.
+   */
+  autoTitle: boolean
 }
 
 export interface SessionManagerEvents {
@@ -52,9 +59,14 @@ export interface SessionDescriptor {
 /** Terminal output arrives in tiny bursts; batching keeps IPC off the hot path. */
 const FLUSH_MS = 4
 
+/** How often panes are asked where they've got to. See startCwdWatch(). */
+const CWD_POLL_MS = 2000
+
 export class SessionManager {
   private sessions = new Map<string, Session>()
   private launchConfig: AgentLaunchConfig = {}
+  private cwdTimer?: NodeJS.Timeout
+  private cwdProbing = false
 
   constructor(private events: SessionManagerEvents) {}
 
@@ -108,8 +120,17 @@ export class SessionManager {
       },
     })
 
-    const session: Session = { snapshot, proc, pending: [] }
+    const session: Session = {
+      snapshot,
+      proc,
+      pending: [],
+      // A restored or restarted pane comes back with the title we derived last
+      // time, so "is this Torc's guess?" is a question about the string, not
+      // about who passed it in.
+      autoTitle: isAutoTitle(snapshot.title, spec.cwd),
+    }
     this.sessions.set(id, session)
+    this.startCwdWatch()
 
     proc.onData((chunk) => this.enqueue(session, chunk))
 
@@ -198,19 +219,64 @@ export class SessionManager {
   }
 
   disposeAll(): void {
+    if (this.cwdTimer) clearInterval(this.cwdTimer)
+    this.cwdTimer = undefined
     for (const id of [...this.sessions.keys()]) this.kill(id)
   }
 
+  /** Numbers repeats against every other pane's title: `torc`, then `torc 2`. */
+  private uniqueTitle(base: string, exceptId?: string): string {
+    const taken = [...this.sessions.values()]
+      .filter((s) => s.snapshot.id !== exceptId)
+      .map((s) => s.snapshot.title)
+    return uniqueTitle(base, taken)
+  }
+
   /**
-   * Several panes in one repo all want to be called "torc"; number the repeats
-   * so the rail and the palette stay tellable apart.
+   * A pane that `cd`s into another repo is in another repo — and the rail,
+   * Mission Control, the title strip and the ⌘K jump list all describe a pane by
+   * its cwd and the name derived from it. Nothing in the output stream announces
+   * a `cd`, so the working directory has to be polled; see cwdProbe.ts.
+   *
+   * Started with the first pane rather than in the constructor, so a fleet of
+   * none costs nothing.
    */
-  private uniqueTitle(base: string): string {
-    const taken = new Set([...this.sessions.values()].map((s) => s.snapshot.title))
-    if (!taken.has(base)) return base
-    for (let n = 2; ; n++) {
-      const candidate = `${base} ${n}`
-      if (!taken.has(candidate)) return candidate
+  private startCwdWatch(): void {
+    if (this.cwdTimer) return
+    this.cwdTimer = setInterval(() => void this.syncCwds(), CWD_POLL_MS)
+    this.cwdTimer.unref?.()
+  }
+
+  private async syncCwds(): Promise<void> {
+    // A slow probe must not stack up behind itself.
+    if (this.cwdProbing || this.sessions.size === 0) return
+    this.cwdProbing = true
+    try {
+      // The pid is captured alongside the session, because a pane whose process
+      // is replaced while the probe is in flight would otherwise be told where
+      // the process it no longer has once was.
+      const live = [...this.sessions.values()].map((session) => ({
+        session,
+        pid: session.proc.pid,
+      }))
+      const cwds = await probeCwds(live.map((entry) => entry.pid))
+
+      for (const { session, pid } of live) {
+        if (this.sessions.get(session.snapshot.id) !== session) continue
+        if (session.proc.pid !== pid) continue
+        const cwd = cwds.get(pid)
+        if (!cwd || cwd === session.snapshot.cwd) continue
+
+        session.snapshot.cwd = cwd
+        // Claude's own `--name` was fixed at launch and can't be changed from out
+        // here; the rail prefers its ai-title anyway once there is one.
+        if (session.autoTitle) {
+          session.snapshot.title = this.uniqueTitle(titleFor(cwd), session.snapshot.id)
+        }
+        this.events.onUpdate({ ...session.snapshot })
+      }
+    } finally {
+      this.cwdProbing = false
     }
   }
 

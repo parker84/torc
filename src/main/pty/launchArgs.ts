@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { basename } from 'node:path'
 import type { SessionSpec } from '@shared/types'
+import { titleFor } from './paneTitle'
 
 export interface LaunchPlan {
   file: string
@@ -19,7 +19,7 @@ export interface LaunchPlan {
  * so it can be unit-tested without spawning anything.
  */
 export function planLaunch(spec: SessionSpec, shell: string): LaunchPlan {
-  const title = spec.title?.trim() || basename(spec.cwd) || 'session'
+  const title = spec.title?.trim() || titleFor(spec.cwd)
 
   if (spec.kind === 'shell') {
     return { file: shell, args: ['-l'], title }
