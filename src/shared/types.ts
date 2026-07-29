@@ -93,8 +93,16 @@ export const IPC = {
   appLoadState: 'app:load-state',
   appSaveState: 'app:save-state',
   appOpenIn: 'app:open-in',
+  /** Right-click in a pane; main owns Menu, so it builds and pops the menu. */
+  paneContextMenu: 'pane:context-menu',
   /** main → renderer: the user clicked a notification. */
   focusPane: 'app:focus-pane',
+  /**
+   * main → renderer. Paste goes back to xterm rather than straight to the pty
+   * so bracketed paste is honoured: a shell that has it on needs the text
+   * wrapped, or a multi-line paste runs each line the moment it arrives.
+   */
+  panePaste: 'pane:paste',
 } as const
 
 /** Layout restored on the next launch. */
@@ -135,6 +143,12 @@ export interface TorcApi {
   loadState(): Promise<SavedState | undefined>
   saveState(state: SavedState): void
   openIn(path: string, target: 'editor' | 'finder'): void
+  /**
+   * Opens the pane's right-click menu. The selection is passed in because it
+   * lives in xterm's own model, not the DOM — with the WebGL renderer there is
+   * no document selection for a native Copy to read.
+   */
+  showPaneMenu(id: string, selection: string): void
   onFocusPane(cb: (claudeSessionId: string) => void): () => void
   /** Native folder picker; resolves null if the user cancels. */
   pickDirectory(): Promise<string | null>
@@ -142,4 +156,5 @@ export interface TorcApi {
   onData(cb: (id: string, chunk: string) => void): () => void
   onExit(cb: (id: string, exitCode: number) => void): () => void
   onUpdate(cb: (snapshot: SessionSnapshot) => void): () => void
+  onPaste(cb: (id: string, text: string) => void): () => void
 }

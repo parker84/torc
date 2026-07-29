@@ -148,6 +148,8 @@ Torc never edits your `~/.claude/settings.json`.
 | `⌘⇧R` | Restart pane (agents resume) |
 | `⌘W` | Close pane |
 
+Selected text copies with `⌘C`, or right-click a pane for Copy and Paste.
+
 One note on the dev build: it reports itself as "Electron" in the menu bar, because macOS takes the
 app name from Electron's own signed bundle. `npm run dist` is the one that says Torc.
 
@@ -162,6 +164,7 @@ TORC_DEBUG_HOOKS=1 npm run dev            # log every hook event received
 TORC_QA_MODE=restore npm run dev          # check session restore
 TORC_QA_MODE=split npm run dev            # check splits, broadcast, notifications
 TORC_QA_MODE=keys npm run dev             # check shortcuts from a focused terminal
+TORC_QA_MODE=copy npm run dev             # check right-click copy and paste
 TORC_SCENARIOS=/tmp/scen npm run dev      # 23 assertions over real user flows
 ```
 

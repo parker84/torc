@@ -129,6 +129,25 @@ export function TerminalPane({ pane, active, visible }: Props) {
       ;(host as unknown as { __term: Terminal }).__term = term
     }
 
+    /*
+     * Right-click copy/paste. The menu itself is native, built in main, but the
+     * selection has to be read here: with the WebGL renderer xterm draws the
+     * highlight onto a canvas and keeps the selected text in its own model, so
+     * there is no document selection for a native Copy role to pick up.
+     */
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault()
+      window.torc.showPaneMenu(pane.id, term.hasSelection() ? term.getSelection() : '')
+    }
+    host.addEventListener('contextmenu', onContextMenu)
+
+    // Paste comes back through xterm rather than going straight to the pty so
+    // bracketed paste is applied — otherwise a shell with it enabled runs every
+    // line of a multi-line paste as it lands.
+    const offPaste = window.torc.onPaste((id, text) => {
+      if (id === pane.id) term.paste(text)
+    })
+
     const detach = attachWriter(pane.id, (chunk) => term.write(chunk))
     const keystrokes = term.onData((data) => {
       // Typing jumps the view back to the bottom (xterm's scrollOnUserInput), so
@@ -274,9 +293,11 @@ export function TerminalPane({ pane, active, visible }: Props) {
     return () => {
       observer.disconnect()
       host.removeEventListener('wheel', onWheel, { capture: true })
+      host.removeEventListener('contextmenu', onContextMenu)
       stopFling()
       if (gestureEnd) clearTimeout(gestureEnd)
       keystrokes.dispose()
+      offPaste()
       detach()
       unregisterSearch(pane.id)
       term.dispose()
@@ -317,7 +338,7 @@ export function TerminalPane({ pane, active, visible }: Props) {
         visible ? 'z-10' : 'pointer-events-none invisible z-0'
       }`}
     >
-      <div ref={hostRef} className="h-full w-full" />
+      <div ref={hostRef} data-pane-id={pane.id} className="h-full w-full" />
     </div>
   )
 }
