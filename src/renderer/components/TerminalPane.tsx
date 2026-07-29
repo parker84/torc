@@ -10,6 +10,26 @@ import { useStore } from '../state/store'
 import { attachWriter } from '../term/bus'
 import { registerSearch, unregisterSearch } from '../term/search'
 
+/*
+ * Wheel scroll multipliers. Mapping wheel pixels to rows 1:1 is faithful and
+ * reads as sluggish — a terminal row is ~16px, so the flick that carries you
+ * down a document moves a handful of dense lines here. These are what xterm's
+ * own `scrollSensitivity` and `fastScrollSensitivity` would do for us if owning
+ * the wheel (see onWheel) hadn't put its options out of reach. Tune freely;
+ * they're a matter of taste, not correctness.
+ */
+const SCROLL_SENSITIVITY = 5
+/** ⌥ held — a coarse pass through a long scrollback. xterm's own modifier too. */
+const FAST_SCROLL_SENSITIVITY = 15
+
+/**
+ * Fraction of the gesture's velocity kept per ~16ms frame while coasting. About
+ * three quarters of a second of glide. Set to 0 to disable inertia entirely.
+ */
+const INERTIA_DECAY = 0.93
+/** Silence after the last wheel event that counts as the gesture having ended. */
+const GESTURE_END_MS = 50
+
 interface Props {
   pane: SessionSnapshot
   /** Holds keyboard focus. Exactly one pane at a time. */
@@ -110,7 +130,26 @@ export function TerminalPane({ pane, active, visible }: Props) {
     }
 
     const detach = attachWriter(pane.id, (chunk) => term.write(chunk))
-    const keystrokes = term.onData((data) => window.torc.sessions.write(pane.id, data))
+    const keystrokes = term.onData((data) => {
+      // Typing jumps the view back to the bottom (xterm's scrollOnUserInput), so
+      // a fling still in flight would be fighting it.
+      stopFling()
+      window.torc.sessions.write(pane.id, data)
+    })
+
+    // One row's height in pixels, which the wheel handler below needs on every
+    // event. Measured rather than derived from fontSize × lineHeight because the
+    // renderer rounds, and cached because a trackpad fires at ~120Hz per pane and
+    // a DOM query per event is pure waste. Re-measured whenever the layout moves.
+    let rowHeight = 17
+    const measureRow = () => {
+      const screen = host.querySelector<HTMLElement>('.xterm-screen')
+      // Falls back to the initial guess while a pane is still being laid out and
+      // the screen has no height to divide up yet.
+      if (screen && term.rows > 0 && screen.clientHeight > 0) {
+        rowHeight = screen.clientHeight / term.rows
+      }
+    }
 
     const syncSize = () => {
       try {
@@ -118,6 +157,7 @@ export function TerminalPane({ pane, active, visible }: Props) {
       } catch {
         return
       }
+      measureRow()
       window.torc.sessions.resize(pane.id, term.cols, term.rows)
     }
 
@@ -137,30 +177,105 @@ export function TerminalPane({ pane, active, visible }: Props) {
      * and double-scrolls.
      */
     let pixels = 0
-    const onWheel = (event: WheelEvent) => {
-      if (term.buffer.active.type === 'alternate') return
-      event.preventDefault()
-      event.stopPropagation()
-
-      const screen = host.querySelector<HTMLElement>('.xterm-screen')
-      const rowHeight = screen && term.rows > 0 ? screen.clientHeight / term.rows : 17
-      // DOM_DELTA_LINE / DOM_DELTA_PAGE arrive from some mice and from the
-      // page-scroll gesture; normalise everything to pixels first.
-      const scale = event.deltaMode === 1 ? rowHeight : event.deltaMode === 2 ? term.rows * rowHeight : 1
-      pixels += event.deltaY * scale
-
-      // Keep the remainder: a trackpad sends deltas far smaller than a row, and
-      // dropping them would make slow scrolling do nothing at all.
+    /**
+     * Moves the view by a pixel delta. The buffer only scrolls in whole rows, so
+     * the sub-row remainder is carried: a trackpad sends deltas far smaller than
+     * a row, and dropping them would make slow scrolling do nothing at all.
+     */
+    const scrollByPixels = (delta: number): void => {
+      pixels += delta
       const lines = Math.trunc(pixels / rowHeight)
       if (lines === 0) return
       pixels -= lines * rowHeight
       term.scrollLines(lines)
+    }
+
+    /*
+     * Inertia. Calling preventDefault() on every event is what keeps scrollback
+     * reachable, and the fling is what it costs: a native scroll view coasts
+     * after you lift your finger, and ours stopped dead the instant you did.
+     *
+     * macOS emits its own momentum events, but only for gestures the compositor
+     * owns — and we've taken this one. Rather than guess whether they arrive,
+     * this coasts only in the *silence* after the last event, and any wheel event
+     * cancels it. So if real momentum does show up it simply takes over, and the
+     * two can never compound into a double fling.
+     */
+    let velocity = 0 // pixels per ms, signed
+    let lastWheelAt = 0
+    let flingFrame = 0
+    let gestureEnd: ReturnType<typeof setTimeout> | undefined
+
+    const stopFling = (): void => {
+      if (flingFrame) cancelAnimationFrame(flingFrame)
+      flingFrame = 0
+    }
+
+    const fling = (previous: number): void => {
+      flingFrame = requestAnimationFrame((now) => {
+        // Clamped both ways: a dropped frame shouldn't teleport the view, and a
+        // zero-length one must not leave the decay a no-op.
+        const elapsed = Math.max(1, Math.min(now - previous, 32))
+        velocity *= INERTIA_DECAY ** (elapsed / 16)
+
+        // Below half a row per frame there's nothing left to see. Bailing at the
+        // ends of the scrollback too, rather than spinning frames against a
+        // scrollLines() that can't move.
+        const buffer = term.buffer.active
+        const stalled =
+          Math.abs(velocity) * 16 < rowHeight / 2 ||
+          (velocity < 0 && buffer.viewportY === 0) ||
+          (velocity > 0 && buffer.viewportY >= buffer.baseY)
+        if (stalled) {
+          flingFrame = 0
+          return
+        }
+
+        scrollByPixels(velocity * elapsed)
+        fling(now)
+      })
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      if (term.buffer.active.type === 'alternate') return
+      event.preventDefault()
+      event.stopPropagation()
+      stopFling()
+
+      // DOM_DELTA_LINE / DOM_DELTA_PAGE arrive from some mice and from the
+      // page-scroll gesture; normalise everything to pixels first.
+      const scale = event.deltaMode === 1 ? rowHeight : event.deltaMode === 2 ? term.rows * rowHeight : 1
+      const sensitivity = event.altKey ? FAST_SCROLL_SENSITIVITY : SCROLL_SENSITIVITY
+      const delta = event.deltaY * scale * sensitivity
+
+      // A remainder carried from the other direction is a dead zone of up to a
+      // full row in front of the new one, which is most of what reversing
+      // direction feels sticky.
+      if ((delta < 0 && pixels > 0) || (delta > 0 && pixels < 0)) pixels = 0
+
+      // Smoothed, so one jittery event can't define the whole fling. `timeStamp`
+      // shares performance.now()'s origin, so mixing the two below is safe.
+      const elapsed = Math.max(1, Math.min(event.timeStamp - lastWheelAt, 100))
+      const instant = delta / elapsed
+      velocity = lastWheelAt === 0 ? instant : velocity * 0.7 + instant * 0.3
+      lastWheelAt = event.timeStamp
+
+      scrollByPixels(delta)
+
+      if (gestureEnd) clearTimeout(gestureEnd)
+      gestureEnd = setTimeout(() => {
+        gestureEnd = undefined
+        lastWheelAt = 0
+        if (term.buffer.active.type !== 'alternate') fling(performance.now())
+      }, GESTURE_END_MS)
     }
     host.addEventListener('wheel', onWheel, { capture: true, passive: false })
 
     return () => {
       observer.disconnect()
       host.removeEventListener('wheel', onWheel, { capture: true })
+      stopFling()
+      if (gestureEnd) clearTimeout(gestureEnd)
       keystrokes.dispose()
       detach()
       unregisterSearch(pane.id)
