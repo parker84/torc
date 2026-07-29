@@ -126,7 +126,7 @@ export async function runScenarios(win: BrowserWindow, outDir: string): Promise<
   await js(`window.__torc.store.getState().cycleTheme()`)
   await delay(400)
   const midTheme = (await state()).theme
-  check('⌃⌘T changes the theme', midTheme !== startTheme, `${startTheme} → ${midTheme}`)
+  check('⌥⌘T changes the theme', midTheme !== startTheme, `${startTheme} → ${midTheme}`)
   await js(`window.__torc.store.getState().cycleTheme()`)
   await delay(300)
   await js(`window.__torc.store.getState().cycleTheme()`)

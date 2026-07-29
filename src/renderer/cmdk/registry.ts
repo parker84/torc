@@ -206,7 +206,7 @@ export function buildCommands(): Command[] {
       subtitle: THEME_IDS.map((id) => THEMES[id].label).join(' → '),
       group: 'Appearance',
       keywords: ['next', 'toggle', 'switch', 'color'],
-      hint: '⌃⌘T',
+      hint: '⌥⌘T',
       run: () => useStore.getState().cycleTheme(),
     },
   ]

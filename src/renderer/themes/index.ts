@@ -104,7 +104,7 @@ export const THEMES: Record<ThemeId, ThemeDef> = {
 
 export const THEME_LIST = Object.values(THEMES)
 
-/** Cycle order for ⌃⌘T: light → cyberpunk → matrix. */
+/** Cycle order for ⌥⌘T: light → cyberpunk → matrix. */
 export const THEME_IDS = ['notion', 'cyberpunk', 'matrix'] as const
 
 /** Renamed from "synthwave"; keep old persisted values working. */

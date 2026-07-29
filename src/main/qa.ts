@@ -207,6 +207,25 @@ async function checkKeys(win: BrowserWindow): Promise<void> {
   )
   await delay(400)
   console.log(`[keys] view after dispatched esc: ${await view()}`)
+
+  // Menu accelerators can't be tested with sendInputEvent — Electron delivers
+  // them natively, outside the renderer input path, so injected chords are
+  // silently dropped (verified against ⌥⌘2, which works for real users). What
+  // is worth asserting is that the item exists with the accelerator we expect
+  // and that clicking it reaches the renderer.
+  const theme = () => win.webContents.executeJavaScript(`window.__torc.store.getState().theme`, true)
+  const item = (Menu.getApplicationMenu()?.items ?? [])
+    .flatMap((entry) => entry.submenu?.items ?? [])
+    .find((entry) => entry.label === 'Cycle Theme')
+  console.log(`[keys] Cycle Theme accelerator: ${item?.accelerator ?? 'MISSING'}`)
+
+  const before = await theme()
+  item?.click()
+  await delay(600)
+  const after = await theme()
+  console.log(
+    `[keys] theme after Cycle Theme: ${before} → ${after} (${before === after ? 'FAIL' : 'ok'})`,
+  )
 }
 
 export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
