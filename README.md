@@ -144,7 +144,7 @@ Torc never edits your `~/.claude/settings.json`.
 | `⌥⌘1` / `⌥⌘2` / `⌥⌘4` | One, two or four panes on screen |
 | `⌃⇥` | Jump back to the pane you were just in |
 | `⌘P` | Quick switch to an agent by name |
-| `⌃⌘T` | Cycle theme |
+| `⌥⌘T` | Cycle theme (or click the theme name in the status bar) |
 | `⌘⇧R` | Restart pane (agents resume) |
 | `⌘W` | Close pane |
 

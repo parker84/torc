@@ -255,7 +255,9 @@ function buildMenu(): void {
           { type: 'separator' },
           {
             label: 'Cycle Theme',
-            accelerator: 'Control+CmdOrCtrl+T',
+            // ⌥⌘ is this app's appearance group (⌥⌘1/2/4 size the grid), and
+            // ⇧⌘T is already New Agent.
+            accelerator: 'CmdOrCtrl+Alt+T',
             click: () => send('menu:cycle-theme'),
           },
           { type: 'separator' },

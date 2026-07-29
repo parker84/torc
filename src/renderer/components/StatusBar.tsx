@@ -25,7 +25,14 @@ export function StatusBar() {
         </span>
       )}
       {active && <span className="truncate">{active.cwd}</span>}
-      <span className="ml-auto">{THEMES[theme].label}</span>
+      {/* The theme name doubles as the switch — no chord to remember. */}
+      <button
+        onClick={() => useStore.getState().cycleTheme()}
+        title="Cycle theme (⌥⌘T)"
+        className="ml-auto rounded px-1 hover:text-fg"
+      >
+        {THEMES[theme].label}
+      </button>
       <span className="opacity-60">⌘K</span>
     </footer>
   )
