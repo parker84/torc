@@ -91,9 +91,17 @@ export const useStore = create<TorcState>((set, get) => ({
   recent: [],
 
   async newSession(spec) {
-    // Explicit choice → the folder you last opened an agent in → wherever Torc
-    // was launched from. Landing in $HOME is never what you meant.
-    const resolved = spec.cwd ?? get().lastCwd ?? (await window.torc.defaultCwd())
+    // Explicit choice → wherever the pane you're looking at has got to → the
+    // folder you last opened one in → wherever Torc was launched from. The active
+    // pane comes first because the repo you're in is the repo you mean; a shell
+    // you cd'd out of trace-backend shouldn't keep handing out trace-backend.
+    // Landing in $HOME is never what you meant.
+    const { panes, activeId, lastCwd } = get()
+    const resolved =
+      spec.cwd ??
+      panes.find((p) => p.id === activeId)?.cwd ??
+      lastCwd ??
+      (await window.torc.defaultCwd())
     try {
       const snapshot = await window.torc.sessions.create({ ...spec, cwd: resolved })
       set((s) => ({

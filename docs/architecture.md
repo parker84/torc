@@ -88,6 +88,26 @@ in `claude agents --json` without a session id we assigned, so `FleetMonitor.onP
 **process ancestry**: walk the discovered pid's parent chain looking for the pane's PTY pid. Matching
 on cwd alone would be ambiguous the moment two panes sit in the same repo.
 
+## Panes follow the directory
+
+A pane's cwd is not fixed at spawn. The rail subtitle, the title strip, the Mission Control card and
+the auto-derived name all describe a pane by where it is, and a fleet you spun up from one repo would
+otherwise stay labelled `trace-backend 2`, `trace-backend 3` long after you'd `cd`'d elsewhere.
+
+Nothing in a pty's output announces a `cd`, so `pty/cwdProbe.ts` asks the kernel instead — one batched
+`lsof -d cwd -Fn -p <pids>` on macOS (a few tens of milliseconds for the whole fleet), `/proc/<pid>/cwd`
+on Linux — and `SessionManager` polls it every 2s. The pid is captured alongside the session, because
+an agent that exits into a shell gets a new process mid-probe.
+
+Renaming is conditional: `pty/paneTitle.ts#isAutoTitle` treats a title as Torc's own if it's the
+folder's basename or a numbered repeat of it (`torc`, `torc 2`), so a name you typed yourself is never
+overwritten. The question is asked of the string rather than of who passed it in, which is what makes
+a restored or restarted pane keep following its directory. Claude's own `--name` is fixed at launch and
+can't be updated from outside, but the rail prefers its `ai-title` anyway once there is one.
+
+`⌘T` resolves its cwd the same way round: explicit choice → the active pane's *current* directory →
+the last folder you opened one in → Torc's launch directory.
+
 ## Persistence
 
 `store/persist.ts` mirrors the layout to `~/.torc/state.json` (write-then-rename, so a crash can't

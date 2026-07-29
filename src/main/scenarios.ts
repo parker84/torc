@@ -176,5 +176,32 @@ export async function runScenarios(win: BrowserWindow, outDir: string): Promise<
   await delay(2500)
   check('a new terminal opens after emptying', (await state()).paneCount === 1)
 
+  // ── following the directory ──────────────────────────────────────────────
+  // A pane that cd's somewhere else has to say so: the rail subtitle, the title
+  // strip and the Mission Control card all read the pane's cwd, and a fleet of
+  // panes all still labelled with the repo they were born in is unreadable.
+  const pane = async () => js<{ cwd: string; title: string }>(
+    `(() => { const p = window.__torc.store.getState().panes.at(-1); return { cwd: p.cwd, title: p.title }; })()`,
+  )
+  const born = await pane()
+  const wanderer = (await state()).activeId as string
+  await js(`window.__torc.store.getState().sendToPane(${JSON.stringify(wanderer)}, 'cd /tmp')`)
+  // Longer than one poll interval, plus room for the shell to get there.
+  await delay(4000)
+  const moved = await pane()
+  check(
+    'a pane that cd\'s reports its new directory',
+    moved.cwd.endsWith('/tmp') && moved.cwd !== born.cwd,
+    `${born.cwd} → ${moved.cwd}`,
+  )
+  check('and relabels itself after it', moved.title === 'tmp', moved.title)
+
+  // The repo you're in is the repo you mean — ⌘T follows the pane you're looking
+  // at rather than handing out the folder the first pane happened to open in.
+  await js(`window.__torc.store.getState().newSession({ kind: 'shell' })`)
+  await delay(2500)
+  const opened = await pane()
+  check('a new terminal opens where you are now', opened.cwd === moved.cwd, opened.cwd)
+
   console.log(`[scenario] ${passed} passed, ${failed} failed`)
 }
