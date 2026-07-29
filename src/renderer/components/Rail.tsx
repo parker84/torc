@@ -10,6 +10,7 @@ export function Rail() {
   const activeId = useStore((s) => s.activeId)
   const setActive = useStore((s) => s.setActive)
   const newSession = useStore((s) => s.newSession)
+  const closePane = useStore((s) => s.closePane)
 
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-line bg-surface">
@@ -29,40 +30,58 @@ export function Rail() {
         {panes.map((pane, index) => {
           const isActive = pane.id === activeId
           return (
-            <button
+            <div
               key={pane.id}
-              onClick={() => setActive(pane.id)}
-              className={`group mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+              className={`group relative mb-0.5 flex items-center rounded-md transition-colors ${
                 isActive ? 'bg-accent-soft text-fg' : 'text-muted hover:bg-raised hover:text-fg'
               }`}
             >
-              {/* Always visible, not on hover: the number is how you jump. */}
-              <kbd
-                className={`w-3.5 shrink-0 text-center font-mono text-[10px] ${
-                  isActive ? 'text-fg' : 'text-muted'
-                }`}
+              <button
+                onClick={() => setActive(pane.id)}
+                className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
               >
-                {index < 9 ? index + 1 : ''}
-              </kbd>
-              <StatusDot status={pane.status} needsAttention={pane.needsAttention} />
-              <span className="min-w-0 flex-1">
-                {/* Claude's own title for the conversation says far more than
-                    "torc 2" — fall back to the pane name until it exists. */}
-                <span className="block truncate text-xs font-medium">
-                  {pane.aiTitle || pane.title}
-                </span>
-                <span
-                  className={`block truncate text-[10px] ${
-                    pane.needsAttention ? 'text-warn' : 'text-muted'
+                {/* Always visible, not on hover: the number is how you jump. */}
+                <kbd
+                  className={`w-3.5 shrink-0 text-center font-mono text-[10px] ${
+                    isActive ? 'text-fg' : 'text-muted'
                   }`}
                 >
-                  {pane.kind === 'shell' && !pane.claudeSessionId
-                    ? 'shell'
-                    : statusLabel(pane.status, pane.needsAttention)}{' '}
-                  · {basename(pane.cwd)}
+                  {index < 9 ? index + 1 : ''}
+                </kbd>
+                <StatusDot status={pane.status} needsAttention={pane.needsAttention} />
+                <span className="min-w-0 flex-1">
+                  {/* Claude's own title for the conversation says far more than
+                      "torc 2" — fall back to the pane name until it exists. */}
+                  <span className="block truncate text-xs font-medium">
+                    {pane.aiTitle || pane.title}
+                  </span>
+                  <span
+                    className={`block truncate text-[10px] ${
+                      pane.needsAttention ? 'text-warn' : 'text-muted'
+                    }`}
+                  >
+                    {pane.kind === 'shell' && !pane.claudeSessionId
+                      ? 'shell'
+                      : statusLabel(pane.status, pane.needsAttention)}{' '}
+                    · {basename(pane.cwd)}
+                  </span>
                 </span>
-              </span>
-            </button>
+              </button>
+
+              {/*
+                Closing a pane shouldn't mean remembering ⌘W. Absolute rather
+                than in flow so titles don't reflow on hover, and bg-inherit so
+                it sits on the row's own colour instead of punching a hole in it.
+              */}
+              <button
+                onClick={() => void closePane(pane.id)}
+                title={`Close ${pane.aiTitle || pane.title} (⌘W)`}
+                aria-label={`Close ${pane.aiTitle || pane.title}`}
+                className="absolute right-1 rounded bg-inherit p-1 font-mono text-[11px] leading-none text-muted opacity-0 group-hover:opacity-100 hover:bg-line hover:text-fg focus-visible:opacity-100"
+              >
+                ✕
+              </button>
+            </div>
           )
         })}
       </div>

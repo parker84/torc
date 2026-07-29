@@ -34,7 +34,14 @@ export function TerminalPane({ pane, active, visible }: Props) {
     const term = new Terminal({
       fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace",
       fontSize: 13,
-      lineHeight: 1.35,
+      /*
+       * Rows are the currency an agent's UI spends. Claude Code sizes its
+       * composer as a share of the terminal's rows and scrolls it internally
+       * once it runs out, so a tall line height doesn't just look airy — it
+       * clips a long paste. 1.2 is close to what Warp and iTerm ship and buys
+       * back about one line in nine.
+       */
+      lineHeight: 1.2,
       cursorBlink: true,
       cursorStyle: 'bar',
       scrollback: 10_000,
@@ -60,19 +67,47 @@ export function TerminalPane({ pane, active, visible }: Props) {
       // DOM renderer is the fallback; nothing to do.
     }
 
-    /*
-     * ⌘-chords belong to the app, not the pty. Without this xterm consumes ⌘⏎ —
-     * it looks like a plain Enter to the terminal — so Mission Control could
-     * never be toggled from inside a focused agent. Returning false makes xterm
-     * ignore the event entirely so it bubbles to the window handler.
-     *
-     * Only the Cmd modifier: Ctrl combos (⌃C to interrupt) and Alt combos must
-     * still reach the agent.
-     */
-    term.attachCustomKeyEventHandler((event) => !event.metaKey)
+    term.attachCustomKeyEventHandler((event) => {
+      /*
+       * ⌘-chords belong to the app, not the pty. Without this xterm consumes ⌘⏎ —
+       * it looks like a plain Enter to the terminal — so Mission Control could
+       * never be toggled from inside a focused agent. Returning false makes xterm
+       * ignore the event entirely so it bubbles to the window handler.
+       *
+       * Only the Cmd modifier: Ctrl combos (⌃C to interrupt) and Alt combos must
+       * still reach the agent.
+       */
+      if (event.metaKey) return false
+
+      /*
+       * ⇧⏎ is a newline, not a submit. Two separate things are needed for that.
+       *
+       * The byte is LF, not CR. A bare CR is exactly what plain ⏎ sends, so no
+       * REPL can tell the two apart — Claude Code submitted the prompt. LF is
+       * the byte behind its own ⌃J newline binding, so it inserts a line break.
+       *
+       * And every phase of the key has to be swallowed, not just keydown.
+       * xterm checks `_keyDownHandled` at the top of its keypress path, but our
+       * returning false from keydown means it never got set — so xterm went on
+       * to send its own bare CR from keypress and submitted anyway, right after
+       * we'd written the newline.
+       */
+      if (event.key === 'Enter' && event.shiftKey && !event.altKey && !event.ctrlKey) {
+        if (event.type === 'keydown') window.torc.sessions.write(pane.id, '\n')
+        return false
+      }
+
+      return true
+    })
 
     termRef.current = term
     fitRef.current = fit
+
+    // Dev-only handle, like the store's own in state/store.ts: pane behaviour
+    // (scrollback, buffer state) can only be asserted from the Terminal itself.
+    if (import.meta.env.DEV || window.torc.qaEnabled) {
+      ;(host as unknown as { __term: Terminal }).__term = term
+    }
 
     const detach = attachWriter(pane.id, (chunk) => term.write(chunk))
     const keystrokes = term.onData((data) => window.torc.sessions.write(pane.id, data))
@@ -90,8 +125,42 @@ export function TerminalPane({ pane, active, visible }: Props) {
     const observer = new ResizeObserver(syncSize)
     observer.observe(host)
 
+    /*
+     * Wheel scrolling, handled here rather than left to xterm. xterm forwards
+     * the wheel to the program as mouse events the moment that program turns on
+     * mouse reporting — which Claude Code does — so scrollback was unreachable
+     * in exactly the panes you most want to scroll back through.
+     *
+     * Only in the normal buffer: a full-screen program (vim, less, htop) draws
+     * its own view in the alternate buffer, and there the wheel belongs to it.
+     * Capture phase plus stopPropagation so xterm's own handler never also runs
+     * and double-scrolls.
+     */
+    let pixels = 0
+    const onWheel = (event: WheelEvent) => {
+      if (term.buffer.active.type === 'alternate') return
+      event.preventDefault()
+      event.stopPropagation()
+
+      const screen = host.querySelector<HTMLElement>('.xterm-screen')
+      const rowHeight = screen && term.rows > 0 ? screen.clientHeight / term.rows : 17
+      // DOM_DELTA_LINE / DOM_DELTA_PAGE arrive from some mice and from the
+      // page-scroll gesture; normalise everything to pixels first.
+      const scale = event.deltaMode === 1 ? rowHeight : event.deltaMode === 2 ? term.rows * rowHeight : 1
+      pixels += event.deltaY * scale
+
+      // Keep the remainder: a trackpad sends deltas far smaller than a row, and
+      // dropping them would make slow scrolling do nothing at all.
+      const lines = Math.trunc(pixels / rowHeight)
+      if (lines === 0) return
+      pixels -= lines * rowHeight
+      term.scrollLines(lines)
+    }
+    host.addEventListener('wheel', onWheel, { capture: true, passive: false })
+
     return () => {
       observer.disconnect()
+      host.removeEventListener('wheel', onWheel, { capture: true })
       keystrokes.dispose()
       detach()
       unregisterSearch(pane.id)
@@ -127,7 +196,9 @@ export function TerminalPane({ pane, active, visible }: Props) {
 
   return (
     <div
-      className={`absolute inset-0 bg-bg px-2 py-1.5 ${
+      // Horizontal breathing room only. Vertical padding here is a whole row of
+      // the agent's UI spent on empty space.
+      className={`absolute inset-0 bg-bg px-2 ${
         visible ? 'z-10' : 'pointer-events-none invisible z-0'
       }`}
     >
