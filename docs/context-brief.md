@@ -203,10 +203,15 @@ hook outright blocks) when two agents are about to touch the same file.
 - **M4 — Backlog.** Register as an IDE for native diff review, session replay, natural-language
   Cmd-K, adapters for Codex/Gemini/aider, remote/SSH panes.
 
-### Status right now
+### Status
 
-M0 in progress. Electron 43 + React 19.2 + Tailwind 4.3 scaffolded, `node-pty` rebuilt against the
-Electron ABI, main/preload/renderer wired with typed IPC, all three themes defined, PTY output
-coalesced at 4ms to keep IPC off the hot path, Cmd-K registry and fuzzy matcher in.
+**Tracked in [plan-of-attack.md](plan-of-attack.md), not here.** This document is a snapshot of
+intent from 2026-07-26 and is deliberately left that way; the plan is the living one. As of
+2026-07-29, M0 through M2 have shipped and M3 is parked pending the design questions in issue #1.
+
+For the record, what "right now" meant on the day this was written: M0 in progress. Electron 43 +
+React 19.2 + Tailwind 4.3 scaffolded, `node-pty` rebuilt against the Electron ABI,
+main/preload/renderer wired with typed IPC, all three themes defined, PTY output coalesced at 4ms to
+keep IPC off the hot path, Cmd-K registry and fuzzy matcher in.
 
 Repo: `github.com/parker84/torc` (Apache-2.0).
