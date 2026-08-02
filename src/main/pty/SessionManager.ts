@@ -19,6 +19,11 @@ interface Session {
   /** Coalescing buffer — see flush(). */
   pending: string[]
   flushTimer?: NodeJS.Timeout
+  /** Last size the renderer asked for, so a respawn opens at the right size. */
+  cols: number
+  rows: number
+  /** Set by kill(): the pane is going away, so don't fall back to a shell. */
+  closing?: boolean
   /**
    * True while the title is Torc's own guess at a name, which is what lets it
    * follow the pane into a new directory. A title the user typed stays put.
@@ -99,11 +104,48 @@ export class SessionManager {
       model: spec.model,
     }
 
-    const proc = pty.spawn(plan.file, plan.args, {
-      name: 'xterm-256color',
+    const proc = this.spawnPty(plan.file, plan.args, spec.cwd, env, 80, 24)
+
+    const session: Session = {
+      snapshot,
+      proc,
+      pending: [],
       cols: 80,
       rows: 24,
-      cwd: spec.cwd,
+      // A restored or restarted pane comes back with the title we derived last
+      // time, so "is this Torc's guess?" is a question about the string, not
+      // about who passed it in.
+      autoTitle: isAutoTitle(snapshot.title, spec.cwd),
+    }
+    this.sessions.set(id, session)
+    this.wire(session, spec.kind === 'shell')
+    this.startCwdWatch()
+
+    // The real status arrives from FleetMonitor within a second or two; until
+    // then the pane reads as launching.
+    snapshot.status = spec.kind === 'shell' ? 'idle' : 'launching'
+    this.events.onCreated?.({ ...snapshot })
+    return { ...snapshot }
+  }
+
+  /**
+   * Protected rather than private so a test can hand back a fake pty: the exit
+   * routing below has five conditions that only differ by *which* process died
+   * and when, and driving those with real processes is both slow and racy.
+   */
+  protected spawnPty(
+    file: string,
+    args: string[],
+    cwd: string,
+    env: Record<string, string>,
+    cols: number,
+    rows: number,
+  ): IPty {
+    return pty.spawn(file, args, {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd,
       env: {
         ...env,
         // The shim goes first so `claude` typed into a shell picks it up.
@@ -119,18 +161,15 @@ export class SessionManager {
         ...(this.launchConfig.hookUrl ? { [HOOK_URL_ENV]: this.launchConfig.hookUrl } : {}),
       },
     })
+  }
 
-    const session: Session = {
-      snapshot,
-      proc,
-      pending: [],
-      // A restored or restarted pane comes back with the title we derived last
-      // time, so "is this Torc's guess?" is a question about the string, not
-      // about who passed it in.
-      autoTitle: isAutoTitle(snapshot.title, spec.cwd),
-    }
-    this.sessions.set(id, session)
-    this.startCwdWatch()
+  /**
+   * Hooks a freshly spawned pty up to the pane. Called again on respawn, so
+   * everything here has to be safe to repeat.
+   */
+  private wire(session: Session, isShell: boolean): void {
+    const { proc } = session
+    const id = session.snapshot.id
 
     proc.onData((chunk) => this.enqueue(session, chunk))
 
@@ -138,31 +177,110 @@ export class SessionManager {
     // ~/.local/bin and so pushes our shim behind the real claude. PATH set at
     // spawn time can't win that, so re-assert it once the rc files have run,
     // then clear so the pane looks untouched.
-    if (spec.kind === 'shell' && this.launchConfig.shimDir) {
+    if (isShell && this.launchConfig.shimDir) {
       const shimDir = this.launchConfig.shimDir
       setTimeout(() => {
-        if (!this.sessions.has(id)) return
+        // Only if this is still the pane's live process — a respawn or a close
+        // in the meantime means this write belongs to nothing.
+        if (this.sessions.get(id)?.proc !== proc) return
         proc.write(`export PATH="${shimDir}:$PATH"; clear\r`)
       }, 700)
     }
 
     proc.onExit(({ exitCode }) => {
+      if (this.sessions.get(id)?.proc !== proc) return
       this.flush(session)
-      session.snapshot.status = exitCode === 0 ? 'exited' : 'error'
-      session.snapshot.exitCode = exitCode
-      session.snapshot.needsAttention = exitCode !== 0
-      session.snapshot.currentTool = undefined
-      this.events.onUpdate({ ...session.snapshot })
-      this.events.onExit(id, exitCode)
-      this.events.onClosed?.(id)
-      this.sessions.delete(id)
-    })
 
-    // The real status arrives from FleetMonitor within a second or two; until
-    // then the pane reads as launching.
-    snapshot.status = spec.kind === 'shell' ? 'idle' : 'launching'
-    this.events.onCreated?.({ ...snapshot })
-    return { ...snapshot }
+      // Quitting the agent shouldn't leave a dead pane behind: ⌃C ⌃C out of
+      // Claude Code lands you back at a shell prompt in the same directory,
+      // which is what it does in any other terminal. Only for panes Torc
+      // launched `claude` in directly — a shell pane's exit really is the end
+      // of the pane, and an explicit close must not resurrect itself. An agent
+      // that died in the first couple of seconds never started: that's a launch
+      // failure, and it should read as an error rather than quietly become a
+      // shell.
+      const ranFor = Date.now() - session.snapshot.startedAt
+      if (session.snapshot.kind === 'claude' && !session.closing && ranFor > 2000) {
+        void this.fallBackToShell(session, exitCode)
+        return
+      }
+
+      this.teardown(session, exitCode)
+    })
+  }
+
+  /**
+   * Ends a pane for good: the renderer drops it, the monitor stops watching,
+   * and the id is forgotten. Every route out of a pty's exit ends here except
+   * the one that puts a shell in the pane's place.
+   */
+  private teardown(session: Session, exitCode: number): void {
+    const id = session.snapshot.id
+    session.snapshot.status = exitCode === 0 ? 'exited' : 'error'
+    session.snapshot.exitCode = exitCode
+    session.snapshot.needsAttention = exitCode !== 0
+    session.snapshot.currentTool = undefined
+    this.events.onUpdate({ ...session.snapshot })
+    this.events.onExit(id, exitCode)
+    this.events.onClosed?.(id)
+    this.sessions.delete(id)
+  }
+
+  /**
+   * Replaces an exited agent with a login shell in the same pane, keeping the
+   * pane id — and so the scrollback the agent left behind.
+   */
+  private async fallBackToShell(session: Session, exitCode: number): Promise<void> {
+    const id = session.snapshot.id
+    const env = await resolveUserEnv()
+    // Something else already owns this id; it is not ours to replace.
+    if (this.sessions.get(id) !== session) return
+    // ⌘W landed while we were resolving the environment. The exit that got us
+    // here was this pane's last, so nothing else is coming to close it — do it
+    // now, or the pane is orphaned in the map with no process behind it.
+    if (session.closing) {
+      this.teardown(session, exitCode)
+      return
+    }
+
+    const shell = env.SHELL || '/bin/zsh'
+    let proc: IPty
+    try {
+      proc = this.spawnPty(shell, ['-l'], session.snapshot.cwd, env, session.cols, session.rows)
+    } catch {
+      // No shell to fall back to; report the exit as before.
+      this.teardown(session, exitCode)
+      return
+    }
+
+    // A prompt appearing on its own is confusing without a word about why.
+    const why = exitCode === 0 ? 'agent exited' : `agent exited with code ${exitCode}`
+    this.events.onData(id, `\r\n\x1b[2m— ${why}; back in your shell —\x1b[0m\r\n`)
+
+    session.proc = proc
+    session.snapshot.kind = 'shell'
+    session.snapshot.status = 'idle'
+    session.snapshot.exitCode = undefined
+    session.snapshot.needsAttention = false
+    session.snapshot.startedAt = Date.now()
+    // Everything below belonged to the agent that just quit. Leaving any of it
+    // on would have the rail describing a plain shell as a live conversation —
+    // and re-watching the finished transcript would replay its whole history.
+    // Claude prints its own `claude --resume` line on the way out, which is a
+    // better offer than a stale session id nobody can see.
+    session.snapshot.claudeSessionId = undefined
+    session.snapshot.aiTitle = undefined
+    session.snapshot.currentTool = undefined
+    session.snapshot.recentTools = []
+    session.snapshot.tokens = undefined
+    session.snapshot.costUsd = undefined
+
+    // Re-registered rather than patched: the monitor matches panes by process
+    // ancestry, and the pid just changed.
+    this.events.onClosed?.(id)
+    this.wire(session, true)
+    this.events.onUpdate({ ...session.snapshot })
+    this.events.onCreated?.({ ...session.snapshot })
   }
 
   /** Merges monitor-derived fields into a snapshot and notifies the renderer. */
@@ -183,7 +301,14 @@ export class SessionManager {
   }
 
   write(id: string, data: string): void {
-    this.sessions.get(id)?.proc.write(data)
+    const session = this.sessions.get(id)
+    if (!session) return
+    try {
+      session.proc.write(data)
+    } catch {
+      // Written into the gap between a process exiting and its replacement
+      // being wired up. Dropping the keystroke beats taking down main.
+    }
   }
 
   resize(id: string, cols: number, rows: number): void {
@@ -192,6 +317,9 @@ export class SessionManager {
     // node-pty throws on non-positive dimensions, which happens while a pane is
     // still being laid out.
     if (cols < 1 || rows < 1) return
+    // Remembered so a shell that replaces an exited agent opens at pane size.
+    session.cols = cols
+    session.rows = rows
     try {
       session.proc.resize(cols, rows)
     } catch {
@@ -202,6 +330,7 @@ export class SessionManager {
   kill(id: string): void {
     const session = this.sessions.get(id)
     if (!session) return
+    session.closing = true
     try {
       session.proc.kill()
     } catch {
@@ -252,9 +381,8 @@ export class SessionManager {
     if (this.cwdProbing || this.sessions.size === 0) return
     this.cwdProbing = true
     try {
-      // The pid is captured alongside the session, because a pane whose process
-      // is replaced while the probe is in flight would otherwise be told where
-      // the process it no longer has once was.
+      // The pid is captured alongside the session: an agent that exits into a
+      // shell gets a new process, and a reading from the old one is worthless.
       const live = [...this.sessions.values()].map((session) => ({
         session,
         pid: session.proc.pid,
