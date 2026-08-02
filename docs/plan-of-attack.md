@@ -31,12 +31,11 @@ wrong; #15 corrects it to point here.
 
 ### What's loose right now
 
-Two things sit in the working tree rather than in `main`:
+One thing sits in the working tree rather than in `main`:
 
 | What | Where | Ticket |
 |---|---|---|
 | A diagnostic probe marked "delete me", wired into startup | `src/main/probe.ts`, `src/main/index.ts:106-111` | #12 |
-| An orphan PNG codec imported by nothing | `scripts/lib/png.mjs` | #12 |
 
 And two gaps in the safety net:
 
@@ -54,18 +53,23 @@ The label bug is what a user actually hits. The other two are the cost of leavin
 work sitting in the same working tree; they're small and they unblock a clean diff for everything
 after.
 
-- [ ] **#8 — Pane labels don't follow `cd`.** `cwd` is captured at spawn and never updated, so four
-      separate surfaces keep naming the directory you started in. Shell panes only; agent panes are
-      already correct. *In progress — being picked up separately.*
-- [ ] **#9 — A new pane should inherit the focused pane's live cwd.** Replaces the `lastCwd` default
-      that makes a whole fleet come up in one repo. Depends on #8.
+- [x] **#8 — Pane labels don't follow `cd`.** Shipped in #21. `SessionManager` polls each pane's cwd
+      every 2s (`cwdProbe.ts`, since nothing in the output stream announces a `cd`) and re-derives
+      the title when it moves — but only for titles Torc guessed, which is what `isAutoTitle` is for.
+- [x] **#9 — A new pane should inherit the focused pane's live cwd.** Shipped in #21 alongside #8.
+      `newSession` resolves explicit cwd → the active pane's current cwd → `lastCwd` → launch dir.
+      Both are asserted in `scenarios.ts`.
 - [x] **#11 — Land the agent-exit-to-shell fallback, with tests.** Shipped 2026-08-02 with the first
       `SessionManager` test file — 13 cases over the branch conditions, driven through a fake pty
       (`spawnPty` is `protected` for exactly that). The tests earned their keep immediately: closing
       a pane in the window where the fallback awaits `resolveUserEnv()` left the session orphaned in
       the map with no process behind it. Fixed by giving every non-respawning exit route one
       `teardown()`.
-- [ ] **#12 — Delete the diagnostic probe and the orphan PNG codec.** Its own small PR.
+- [ ] **#12 — Delete the diagnostic probe.** Its own small PR. Half this ticket has expired: the PNG
+      codec at `scripts/lib/png.mjs` is no longer an orphan — #28 gave it a caller in
+      `scripts/make-icon.mjs`, and `npm run icon` needs it, so deleting it would break `npm run dist`
+      on a fresh checkout. Only `src/main/probe.ts` and its startup hook are still for the bin, and
+      #17 wants the probe until the sticky-scroll half is measured.
 
 ### P1 — so a regression can't land quietly
 

@@ -5,3 +5,6 @@ release/
 build/
 .DS_Store
 *.log
+# Agent scratch worktrees — whole checkouts, and machine-local. Deliberately not
+# all of `.claude/`, so shared config can be committed there later.
+.claude/worktrees/
