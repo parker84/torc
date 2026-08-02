@@ -34,7 +34,9 @@ npm run icon          # regenerates build/icon.icns — build/ is gitignored, so
                       # fresh checkout needs this before dist
 ```
 
-Run `npm run typecheck` and `npm test` before opening a PR. There's no CI yet (#14).
+Run `npm run typecheck` and `npm test` before opening a PR. CI runs both on every PR
+(`.github/workflows/ci.yml`); the Electron harnesses below stay local, so run `npm run scenarios`
+yourself when you've touched pane or fleet behaviour.
 
 The Electron harnesses drive the renderer through `window.__torc` and capture with
 `webContents.capturePage()`, so they work regardless of which window is frontmost. They need a

@@ -37,11 +37,8 @@ One thing sits in the working tree rather than in `main`:
 |---|---|---|
 | A diagnostic probe marked "delete me", wired into startup | `src/main/probe.ts`, `src/main/index.ts:106-111` | #12 |
 
-And two gaps in the safety net:
-
-- **The scenario harness cannot fail.** 23 assertions over real user flows, and `app.quit()` is
-  called without an exit code, so all 23 can go red and the process still exits 0 — #13.
-- **There is no CI.** No `.github/` at all; seven PRs have merged with nothing checking them — #14.
+The safety net is now in place: `npm run scenarios` exits 1 on a red assertion (#13), and CI
+typechecks and tests every PR (#14).
 
 ---
 
@@ -80,8 +77,15 @@ when agents are opening the PRs.
 - [ ] **#13 — The scenario harness can't fail the build.** Return the counts, set `process.exitCode`,
       add `npm run scenarios`. The assertions already exist and are already right; they just can't
       speak. Highest leverage item on this list.
-- [ ] **#14 — CI: typecheck and tests on every PR.** One workflow, Ubuntu, skip the `node-pty`
-      rebuild. Electron harnesses stay local — a runner has no signed-in `claude`.
+- [x] **#14 — CI: typecheck and tests on every PR.** Shipped 2026-08-02. One workflow, Ubuntu,
+      `npm ci --ignore-scripts` plus `npm rebuild node-pty`. The rebuild is not optional and the
+      reason is platform-specific: node-pty ships prebuilds for darwin and win32 only, so a clean
+      `--ignore-scripts` install imports fine on a Mac and throws at import on linux-x64 — which takes
+      `SessionManager.test.ts` down with it, since `SessionManager` requires node-pty at module scope.
+      Worth knowing because it was learned the hard way: a clean-checkout test on macOS said the
+      rebuild was unnecessary, and CI's first run on Ubuntu disproved it. A local clean room is not a
+      Linux runner, which is most of the argument for having CI at all. Electron harnesses stay local,
+      as planned — they need a display and a signed-in `claude`.
 - [x] **#15 — A plan-of-attack doc, and a CLAUDE.md that points at it.** This file, `CLAUDE.md`, and
       the stale status section in `docs/context-brief.md` redirected here. Closed by the PR that adds
       this line — which is the upkeep rule working as intended.

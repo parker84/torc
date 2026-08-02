@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to a PR makes the first run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # --ignore-scripts skips two things a runner has no use for: Electron's
+      # postinstall, which downloads the ~100MB binary, and this repo's own
+      # `electron-rebuild -f -w node-pty`, which builds node-pty against
+      # Electron's ABI and needs that binary present. tsc is fine without it —
+      # it reads the .d.ts that ships inside the electron package.
+      - run: npm ci --ignore-scripts
+
+      # node-pty is not optional here, and the reason is platform-specific
+      # enough to be worth writing down: it ships prebuilds for darwin and
+      # win32 only, so on a Mac `--ignore-scripts` alone still imports fine and
+      # on linux-x64 it throws at import — which takes SessionManager.test.ts
+      # (13 cases) down with it, since SessionManager requires node-pty at
+      # module scope. Building against the runner's own Node is what vitest
+      # wants anyway, and it's node-gyp only, no Electron.
+      - run: npm rebuild node-pty
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+# Deliberately not here: the Electron harnesses (`npm run scenarios`, TORC_QA,
+# TORC_DEMO). They drive a real window and spawn real agents, so they need a
+# display and a signed-in `claude` — neither of which a runner has. They stay a
+# local gate; see CLAUDE.md.
