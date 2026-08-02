@@ -228,25 +228,102 @@ async function checkKeys(win: BrowserWindow): Promise<void> {
   )
 }
 
+/**
+ * The palette and its shortcut list, over Mission Control, in each theme. Agents
+ * get real work first so the cards behind it aren't empty — and opening it from
+ * the overview also shows the GO row flipping to "Back to terminals".
+ */
+const PALETTE_FLEET = [
+  ['torc', 'Summarize the architecture of this repo in three bullets.'],
+  ['opendata', 'What are the main entry points here and what does each own?'],
+  ['torcrime-web', 'Where does crime data enter the app, and how is it shaped?'],
+  ['made-in-canada-backend', 'List the external services this project talks to.'],
+  ['trace-backend', 'What are the riskiest parts of this codebase and why?'],
+]
+
+const PALETTE_STEPS: Step[] = [
+  {
+    name: 'palette-00-setup',
+    // Plan mode: read-only tools, so a fleet spun up for a screenshot can't
+    // edit anything. Staggered, because five TUIs booting at once thrash the CPU.
+    js: `(async () => {
+      const home = await window.torc.home();
+      const fleet = ${JSON.stringify(PALETTE_FLEET)};
+      for (const [repo] of fleet) {
+        await window.__torc.store.getState().newSession({
+          kind: 'claude',
+          cwd: home + '/Documents/side/' + repo,
+          permissionMode: 'plan',
+        });
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+    })()`,
+    waitMs: 32000,
+  },
+  {
+    name: 'palette-01-working',
+    js: `(() => {
+      const s = window.__torc.store.getState();
+      const prompts = new Map(${JSON.stringify(PALETTE_FLEET)}.map(([repo, p]) => [repo, p]));
+      s.panes
+        .filter((p) => p.kind === 'claude')
+        .forEach((pane, i) => {
+          const prompt = prompts.get(pane.cwd.split('/').pop()) ?? 'Summarize this repo.';
+          setTimeout(() => window.__torc.store.getState().sendToPane(pane.id, prompt), i * 1100);
+        });
+    })()`,
+    // Long enough that some agents are mid-tool-call and others have finished
+    // and are waiting on plan approval — the mix is the point of the shot. At
+    // 55s everything was still working, which hides the amber state entirely.
+    waitMs: 150000,
+  },
+  {
+    // View first, palette second: Mission Control grabs focus on mount, so the
+    // palette input has to open after it to keep the caret.
+    name: 'palette-notion',
+    js: `(() => {
+      const s = window.__torc.store.getState();
+      s.setTheme('notion');
+      s.setView('mission');
+      setTimeout(() => window.__torc.store.getState().setPalette(true), 250);
+    })()`,
+    waitMs: 2000,
+  },
+  {
+    name: 'palette-cyberpunk',
+    js: `window.__torc.store.getState().setTheme('cyberpunk')`,
+    waitMs: 1600,
+  },
+  {
+    name: 'palette-matrix',
+    js: `window.__torc.store.getState().setTheme('matrix')`,
+    waitMs: 1600,
+  },
+]
+
+/** One agent, so the chord checks run against a focused terminal. */
+const KEYS_STEPS: Step[] = [
+  {
+    name: 'keys-01-agent',
+    js: `window.__torc.store.getState().newSession({ kind: 'claude' })`,
+    waitMs: 12000,
+  },
+]
+
 export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
   mkdirSync(outDir, { recursive: true })
   const mode = process.env.TORC_QA_MODE
-  const steps =
-    mode === 'restore'
-      ? RESTORE_STEPS
-      : mode === 'split'
-        ? SPLIT_STEPS
-        : mode === 'shim'
-          ? SHIM_STEPS
-          : mode === 'keys'
-            ? [
-                {
-                  name: 'keys-01-agent',
-                  js: `window.__torc.store.getState().newSession({ kind: 'claude' })`,
-                  waitMs: 12000,
-                },
-              ]
-            : STEPS
+  // A lookup rather than a ternary chain; there are too many modes for that now.
+  // A mode with no steps of its own — `copy` — runs the default set and asserts
+  // afterwards.
+  const MODES: Record<string, Step[]> = {
+    restore: RESTORE_STEPS,
+    split: SPLIT_STEPS,
+    palette: PALETTE_STEPS,
+    shim: SHIM_STEPS,
+    keys: KEYS_STEPS,
+  }
+  const steps = (mode && MODES[mode]) || STEPS
 
   for (const step of steps) {
     if (step.js) {

@@ -165,6 +165,7 @@ TORC_QA_MODE=restore npm run dev          # check session restore
 TORC_QA_MODE=split npm run dev            # check splits, broadcast, notifications
 TORC_QA_MODE=keys npm run dev             # check shortcuts from a focused terminal
 TORC_QA_MODE=copy npm run dev             # check right-click copy and paste
+TORC_QA_MODE=palette npm run dev          # shoot the palette over a working fleet
 TORC_SCENARIOS=/tmp/scen npm run dev      # 23 assertions over real user flows
 ```
 
