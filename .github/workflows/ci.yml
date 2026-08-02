@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to a PR makes the first run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # --ignore-scripts skips two things a runner has no use for: Electron's
+      # postinstall, which downloads the ~100MB binary, and this repo's own
+      # `electron-rebuild -f -w node-pty`, which builds node-pty against
+      # Electron's ABI and needs that binary present.
+      #
+      # Nothing here needs either. tsc reads Electron's bundled .d.ts, which
+      # ships in the package, and node-pty defers loading its native binding
+      # until `spawn` — which the SessionManager tests never reach, because they
+      # inject a fake pty. Verified in a clean checkout with no `pty.node` on
+      # disk: 85/85 green. If a test ever spawns a real pty, this needs an
+      # `npm rebuild node-pty` before it.
+      - run: npm ci --ignore-scripts
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+# Deliberately not here: the Electron harnesses (`npm run scenarios`, TORC_QA,
+# TORC_DEMO). They drive a real window and spawn real agents, so they need a
+# display and a signed-in `claude` — neither of which a runner has. They stay a
+# local gate; see CLAUDE.md.

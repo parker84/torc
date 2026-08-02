@@ -37,11 +37,8 @@ One thing sits in the working tree rather than in `main`:
 |---|---|---|
 | A diagnostic probe marked "delete me", wired into startup | `src/main/probe.ts`, `src/main/index.ts:106-111` | #12 |
 
-And two gaps in the safety net:
-
-- **The scenario harness cannot fail.** 23 assertions over real user flows, and `app.quit()` is
-  called without an exit code, so all 23 can go red and the process still exits 0 — #13.
-- **There is no CI.** No `.github/` at all; seven PRs have merged with nothing checking them — #14.
+The safety net is now in place: `npm run scenarios` exits 1 on a red assertion (#13), and CI
+typechecks and tests every PR (#14).
 
 ---
 
@@ -80,8 +77,12 @@ when agents are opening the PRs.
 - [ ] **#13 — The scenario harness can't fail the build.** Return the counts, set `process.exitCode`,
       add `npm run scenarios`. The assertions already exist and are already right; they just can't
       speak. Highest leverage item on this list.
-- [ ] **#14 — CI: typecheck and tests on every PR.** One workflow, Ubuntu, skip the `node-pty`
-      rebuild. Electron harnesses stay local — a runner has no signed-in `claude`.
+- [x] **#14 — CI: typecheck and tests on every PR.** Shipped 2026-08-02. One workflow, Ubuntu,
+      `npm ci --ignore-scripts`. The ticket assumed the `node-pty` rebuild had to be replaced with a
+      plain-Node one; it doesn't — verified in a clean checkout with no `pty.node` on disk, 85/85
+      green, because node-pty defers loading its binding until `spawn` and the `SessionManager` tests
+      inject a fake pty. A test that spawns a real one would need `npm rebuild node-pty` added.
+      Electron harnesses stay local, as planned — they need a display and a signed-in `claude`.
 - [x] **#15 — A plan-of-attack doc, and a CLAUDE.md that points at it.** This file, `CLAUDE.md`, and
       the stale status section in `docs/context-brief.md` redirected here. Closed by the PR that adds
       this line — which is the upkeep rule working as intended.
