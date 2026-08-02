@@ -74,9 +74,19 @@ Everything here is cheap and none of it is a feature. It's the difference betwee
 my machine when I remember" and a net that actually catches things — which matters more than usual
 when agents are opening the PRs.
 
-- [ ] **#13 — The scenario harness can't fail the build.** Return the counts, set `process.exitCode`,
-      add `npm run scenarios`. The assertions already exist and are already right; they just can't
-      speak. Highest leverage item on this list.
+- [x] **#13 — The scenario harness can't fail the build.** Shipped 2026-08-02. `runScenarios` returns
+      its counts, `npm run scenarios` exists, and a red run exits 1 — verified both ways by injecting
+      a deliberate failure. It earned its keep on the first run by going red six times: session
+      restore had opened the saved layout before the harness started, so three ⌘T's on top of one
+      restored pane counted as four and every count, title and wrap assertion after it cascaded. The
+      harness now clears the fleet first and resets `lastCwd`, which `restore()` seeds through
+      `newSession` and which otherwise leaks the *previous* run's directory into this one's `cd`
+      assertions. Two things fought back and are worth knowing: `electron-vite dev` swallows the
+      child's exit code, so the script runs the production bundle instead (which is also why
+      `qaEnabled` had to learn about `TORC_SCENARIOS`, or there'd be no `window.__torc` to drive); and
+      leaving abruptly to carry a code — `app.exit()` or `process.exit()` — orphans the GPU and
+      renderer helpers on the inherited stdout, so the runner hangs on a pipe that never closes
+      instead of failing. Quit in order, set the code on `quit`.
 - [x] **#14 — CI: typecheck and tests on every PR.** Shipped 2026-08-02. One workflow, Ubuntu,
       `npm ci --ignore-scripts` plus `npm rebuild node-pty`. The rebuild is not optional and the
       reason is platform-specific: node-pty ships prebuilds for darwin and win32 only, so a clean

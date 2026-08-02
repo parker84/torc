@@ -40,8 +40,16 @@ const api: TorcApi = {
   platform: process.platform,
   /** Dev-only override so QA can boot straight into a given theme. */
   devTheme: process.env.TORC_THEME,
-  /** True when a harness is driving, including in a packaged build. */
-  qaEnabled: Boolean(process.env.TORC_QA || process.env.TORC_DEMO),
+  /**
+   * True when a harness is driving, including in a packaged build. TORC_SCENARIOS
+   * belongs here as much as the other two: `npm run scenarios` runs the
+   * production bundle — that is how it gets a real exit code out of Electron
+   * rather than out of the dev server — and without this the assertions would
+   * find no `window.__torc` to drive.
+   */
+  qaEnabled: Boolean(
+    process.env.TORC_QA || process.env.TORC_DEMO || process.env.TORC_SCENARIOS,
+  ),
   sessions: {
     create: (spec: SessionSpec) => ipcRenderer.invoke(IPC.sessionCreate, spec),
     write: (id, data) => ipcRenderer.send(IPC.sessionWrite, id, data),
