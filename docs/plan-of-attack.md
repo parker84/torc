@@ -18,10 +18,10 @@ A plan document that goes stale is worse than none, because it gets believed. Tw
 
 ## Where we are
 
-Verified 2026-07-29 against the tree, not from intent:
+Verified 2026-08-02 against the tree, not from intent:
 
 - `npm run typecheck` — clean.
-- `npm test` — 56 tests across 8 files, all passing, ~1s. Colocated `.test.ts` beside their source.
+- `npm test` — 85 tests across 11 files, all passing, ~1.5s. Colocated `.test.ts` beside their source.
 - **M0, M1 and M2 have all shipped.** Terminals, splits, themes, ⌘K with all prefix modes, fleet
   monitoring, notifications, session restore, and the packaged build. Seven PRs merged.
 - **M3 (cross-agent context sharing) is unbuilt** and parked pending design — #1.
@@ -149,6 +149,21 @@ work is open, and both want an explicit decision before any code.
 ---
 
 ## Decisions log
+
+**2026-08-02 — One Torc at a time, enforced by a lock; harnesses exempt.**
+`app.requestSingleInstanceLock()` in `index.ts`, taken before the monitor starts. *Why:* two
+instances silently corrupt each other. `~/.torc/state.json` is rewritten on every layout change, so
+whichever quits last overwrites the other's fleet — and a dev build left running beside the packaged
+app is the normal way to get there, not an exotic one. This was found live: a dev instance orphaned
+to ppid 1 had been running for three days beside the packaged app, holding a second hook bridge and a
+3-day-old agent. The loser has to return *before* `monitor.start()`, or it binds a bridge port and
+rewrites the `claude` shim on its way out. *Rejected:* giving each instance its own userData
+directory — it stops the corruption but splits the fleet in half, and since the shim is a single file
+on `PATH`, a hand-launched agent would report to whichever instance wrote it last. Also rejected:
+locking `state.json` — it makes the last write safe while still leaving two windows, two bridges and
+one shim. *Known cost:* the harnesses bypass the lock, because driving a throwaway window beside the
+real app is what they are for — so a harness run can still overwrite a saved layout. That predates
+this change and is why they stay opt-in.
 
 **2026-08-02 — The orchestrator tier gets one scoping ticket and a design doc, not build tickets.**
 #34 plus [`docs/orchestration.md`](orchestration.md). *Why:* the shape isn't settled — two open
