@@ -12,15 +12,20 @@ import { registerSearch, unregisterSearch } from '../term/search'
 
 /*
  * Wheel scroll multipliers. Mapping wheel pixels to rows 1:1 is faithful and
- * reads as sluggish — a terminal row is ~16px, so the flick that carries you
- * down a document moves a handful of dense lines here. These are what xterm's
- * own `scrollSensitivity` and `fastScrollSensitivity` would do for us if owning
- * the wheel (see onWheel) hadn't put its options out of reach. Tune freely;
- * they're a matter of taste, not correctness.
+ * reads as sluggish — a terminal row is 18px at our font and line height, so the
+ * flick that carries you down a document moves a handful of dense lines here.
+ * These are what xterm's own `scrollSensitivity` and `fastScrollSensitivity`
+ * would do for us if owning the wheel (see onWheel) hadn't put its options out
+ * of reach.
+ *
+ * Not purely taste, though the exact number is: the floor is set by the smallest
+ * delta a trackpad sends, about 3px. Below `rowHeight / 3` a slow drag spends
+ * events moving nothing, because `scrollLines()` only moves in whole rows — 5
+ * left one event in six dead, which is what still read as sticky after #18.
  */
-const SCROLL_SENSITIVITY = 5
+const SCROLL_SENSITIVITY = 8
 /** ⌥ held — a coarse pass through a long scrollback. xterm's own modifier too. */
-const FAST_SCROLL_SENSITIVITY = 15
+const FAST_SCROLL_SENSITIVITY = 24
 
 /**
  * Fraction of the gesture's velocity kept per ~16ms frame while coasting. About
