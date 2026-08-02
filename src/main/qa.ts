@@ -275,6 +275,77 @@ export async function runQa(win: BrowserWindow, outDir: string): Promise<void> {
 
   if (mode === 'split') await checkNotification(win)
   if (mode === 'keys') await checkKeys(win)
+  if (mode === 'copy') await checkCopy(win)
+}
+
+/**
+ * Right-click copy/paste in a pane. The subtle half is the renderer's: xterm
+ * keeps its selection outside the DOM, so this asserts a real contextmenu event
+ * on a real selection hands the selected text onwards. Paste is checked as a
+ * round trip through the pty. The native menu is deliberately never popped —
+ * it's modal, and it would wedge the run waiting for a click.
+ */
+async function checkCopy(win: BrowserWindow): Promise<void> {
+  const { IPC } = await import('@shared/types')
+  const js = <T,>(code: string) => win.webContents.executeJavaScript(code, true) as Promise<T>
+
+  const marker = 'torc-copy-probe-42'
+  await js(`window.__torc.store.getState().newSession({ kind: 'shell' })`)
+  await delay(3000)
+  const id = await js<string>(`window.__torc.store.getState().activeId`)
+  const term = `document.querySelector('[data-pane-id="${id}"]').__term`
+
+  await js(`window.torc.sessions.write(${JSON.stringify(id)}, 'echo ${marker}\\r')`)
+  await delay(1500)
+
+  // Select the way a drag does, then right-click the way a user does, and watch
+  // for the request main would act on. Observed here rather than by stubbing
+  // window.torc in the renderer: contextBridge objects are immutable, so a stub
+  // assigned onto them silently does nothing and every run looks like a failure.
+  const { ipcMain } = await import('electron')
+  const seen: Array<{ paneId: string; selection: string }> = []
+  const spy = (_e: unknown, paneId: string, selection: string) => seen.push({ paneId, selection })
+  ipcMain.on(IPC.paneContextMenu, spy)
+
+  const dispatched = await js<string>(`
+    (() => {
+      const host = document.querySelector('[data-pane-id="${id}"]')
+      if (!host?.__term) return 'NO_TERM'
+      host.__term.selectAll()
+      host.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+      return 'dispatched'
+    })()
+  `)
+  await delay(600)
+  ipcMain.removeListener(IPC.paneContextMenu, spy)
+
+  const request = seen[0]
+  console.log(
+    `[copy] right-click requests menu: ${dispatched} → ${
+      !request
+        ? 'FAIL — no request reached main'
+        : request.paneId !== id
+          ? 'FAIL — wrong pane'
+          : request.selection.includes(marker)
+            ? 'ok — selection forwarded'
+            : `FAIL — selection missing marker (${request.selection.slice(0, 30)})`
+    }`,
+  )
+
+  // Paste lands in the pty and echoes back, which also proves it went through
+  // xterm rather than being written raw.
+  const pasted = 'torc-paste-probe-99'
+  win.webContents.send(IPC.panePaste, id, pasted)
+  await delay(1200)
+  const echoed = await js<string>(`
+    (() => {
+      const buffer = ${term}.buffer.active
+      let text = ''
+      for (let i = 0; i < buffer.length; i++) text += buffer.getLine(i)?.translateToString(true) ?? ''
+      return text.includes('${pasted}') ? 'ok' : 'FAIL'
+    })()
+  `)
+  console.log(`[copy] paste reaches the terminal: ${echoed}`)
 }
 
 /**

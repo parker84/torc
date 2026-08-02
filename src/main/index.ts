@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
@@ -291,6 +291,25 @@ function registerIpc(): void {
   )
   // Looking at a pane clears its "finished, unread" attention flag.
   ipcMain.on(IPC.sessionMarkRead, (_e, id: string) => monitor.markRead(id))
+  ipcMain.on(IPC.paneContextMenu, (event, id: string, selection: string) => {
+    const window = BrowserWindow.fromWebContents(event.sender) ?? undefined
+    const pasteable = clipboard.readText()
+    Menu.buildFromTemplate([
+      {
+        label: 'Copy',
+        // Written from the selection we were handed rather than the `copy`
+        // role: xterm keeps its selection outside the DOM, so the role would
+        // find nothing to copy.
+        enabled: selection.length > 0,
+        click: () => clipboard.writeText(selection),
+      },
+      {
+        label: 'Paste',
+        enabled: pasteable.length > 0,
+        click: () => event.sender.send(IPC.panePaste, id, pasteable),
+      },
+    ]).popup({ window })
+  })
   ipcMain.handle(IPC.appHome, () => homedir())
   ipcMain.handle(IPC.appDefaultCwd, () => launchCwd)
   ipcMain.handle(IPC.appLoadState, () => loadState())

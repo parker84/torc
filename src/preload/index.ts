@@ -56,10 +56,12 @@ const api: TorcApi = {
   loadState: () => ipcRenderer.invoke(IPC.appLoadState),
   saveState: (state) => ipcRenderer.send(IPC.appSaveState, state),
   openIn: (path, target) => ipcRenderer.send(IPC.appOpenIn, path, target),
+  showPaneMenu: (id, selection) => ipcRenderer.send(IPC.paneContextMenu, id, selection),
   onFocusPane: (cb) => subscribe<[string]>(IPC.focusPane, cb),
   onData: (cb) => subscribe<[string, string]>(IPC.sessionData, cb),
   onExit: (cb) => subscribe<[string, number]>(IPC.sessionExit, cb),
   onUpdate: (cb) => subscribe<[SessionSnapshot]>(IPC.sessionUpdate, cb),
+  onPaste: (cb) => subscribe<[string, string]>(IPC.panePaste, cb),
 }
 
 contextBridge.exposeInMainWorld(BRAND.id, api)
