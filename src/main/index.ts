@@ -20,6 +20,30 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 app.setName(BRAND.name)
 
 /**
+ * A harness drives a throwaway window on purpose, usually while the real app is
+ * open — so it is exempt from the lock below. It still shares `~/.torc/`, so a
+ * harness run can overwrite a saved layout; that is the cost of not giving it a
+ * userData directory of its own, and it is why the harnesses are opt-in.
+ */
+const isHarness = Boolean(
+  process.env.TORC_SCENARIOS ||
+    process.env.TORC_QA ||
+    process.env.TORC_DEMO ||
+    process.env.TORC_PROBE,
+)
+
+/**
+ * Two Torc instances silently corrupt each other. `~/.torc/state.json` is
+ * rewritten on every layout change, so whichever quits last overwrites the
+ * other's fleet — and a dev build left running beside the packaged app is the
+ * normal way to end up with two. The lock is taken before anything is created
+ * because the loser must not bind a hook bridge port or rewrite the `claude`
+ * shim on its way back out.
+ */
+const hasInstanceLock = isHarness || app.requestSingleInstanceLock()
+if (!hasInstanceLock) app.quit()
+
+/**
  * Where a new agent goes when there's no better answer. `process.cwd()` is the
  * repo you ran `npm run dev` from, which is almost always what you want; in a
  * packaged app it's "/" so fall back to the home directory.
@@ -336,7 +360,22 @@ function registerIpc(): void {
   })
 }
 
+// Someone tried to launch a second Torc. They wanted the one they already have,
+// so raise it rather than leaving the click looking like it did nothing.
+app.on('second-instance', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+})
+
 app.whenReady().then(() => {
+  // We lost the lock and app.quit() is already pending. Returning before the
+  // monitor starts is the point: the loser must not bind a hook bridge port,
+  // rewrite the shim, or open a window that would save its layout over the
+  // instance that actually owns it.
+  if (!hasInstanceLock) return
+
   // In dev the process is Electron's own signed bundle, so macOS takes the menu
   // bar title and dock icon from *its* Info.plist. Setting the dock icon
   // explicitly is the part we can fix without touching a signed bundle; the
