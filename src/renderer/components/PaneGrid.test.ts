@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { SLOTS, visibleWindow } from '../layout/panes'
+import { SLOTS, effectiveGrid, visibleWindow } from '../layout/panes'
+
+describe('effectiveGrid', () => {
+  it('gives a lone pane the whole window, whatever the preference', () => {
+    expect(effectiveGrid(4, 1)).toBe(1)
+    expect(effectiveGrid(2, 1)).toBe(1)
+  })
+
+  it('keeps every pane on screen rather than shrinking the grid', () => {
+    // Three panes in a 2×2 stay a 2×2; a half would hide one.
+    expect(effectiveGrid(4, 3)).toBe(4)
+    expect(effectiveGrid(4, 2)).toBe(2)
+  })
+
+  it('never exceeds the chosen size', () => {
+    expect(effectiveGrid(1, 4)).toBe(1)
+    expect(effectiveGrid(2, 9)).toBe(2)
+  })
+
+  it('handles an empty fleet', () => {
+    expect(effectiveGrid(4, 0)).toBe(1)
+  })
+})
 
 describe('visibleWindow', () => {
   it('starts at zero when everything fits', () => {

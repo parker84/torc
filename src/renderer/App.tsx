@@ -150,9 +150,9 @@ export function App() {
         <main className="relative min-w-0 flex-1">
           {panes.length === 0 && view === 'workspace' && (
             <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-              <p className="text-sm text-muted">Nothing running</p>
+              <p className="text-sm text-muted">Build something great</p>
               <p className="font-mono text-[11px] text-muted opacity-70">
-                ⌘T terminal, then run claude · ⌘K commands · ⌘0 mission control
+                ⌘T terminal · ⌘K commands · ⌘0 mission control
               </p>
             </div>
           )}
