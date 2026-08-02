@@ -31,11 +31,10 @@ wrong; #15 corrects it to point here.
 
 ### What's loose right now
 
-Three things sit in the working tree rather than in `main`:
+Two things sit in the working tree rather than in `main`:
 
 | What | Where | Ticket |
 |---|---|---|
-| Agent-exit-to-shell fallback, finished but untested | `src/main/pty/SessionManager.ts:165-243` | #11 |
 | A diagnostic probe marked "delete me", wired into startup | `src/main/probe.ts`, `src/main/index.ts:106-111` | #12 |
 | An orphan PNG codec imported by nothing | `scripts/lib/png.mjs` | #12 |
 
@@ -60,8 +59,12 @@ after.
       already correct. *In progress — being picked up separately.*
 - [ ] **#9 — A new pane should inherit the focused pane's live cwd.** Replaces the `lastCwd` default
       that makes a whole fleet come up in one repo. Depends on #8.
-- [ ] **#11 — Land the agent-exit-to-shell fallback, with tests.** Five subtle branch conditions and
-      no `SessionManager` test file exists yet.
+- [x] **#11 — Land the agent-exit-to-shell fallback, with tests.** Shipped 2026-08-02 with the first
+      `SessionManager` test file — 13 cases over the branch conditions, driven through a fake pty
+      (`spawnPty` is `protected` for exactly that). The tests earned their keep immediately: closing
+      a pane in the window where the fallback awaits `resolveUserEnv()` left the session orphaned in
+      the map with no process behind it. Fixed by giving every non-respawning exit route one
+      `teardown()`.
 - [ ] **#12 — Delete the diagnostic probe and the orphan PNG codec.** Its own small PR.
 
 ### P1 — so a regression can't land quietly
