@@ -65,7 +65,7 @@ export interface SessionSnapshot {
   status: AgentStatus
   startedAt: number
   exitCode?: number
-  /** True while the agent is blocked on the user (permission prompt, question). */
+  /** True while the agent is blocked by the user (permission prompt, question). */
   needsAttention: boolean
   currentTool?: ToolCall
   recentTools: ToolCall[]

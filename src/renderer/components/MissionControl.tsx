@@ -17,7 +17,7 @@ function compactTokens(n: number): string {
   return String(n)
 }
 
-/** Agents blocked on the user come first — that's the whole point of this view. */
+/** Agents blocked by the user come first — that's the whole point of this view. */
 function byAttention(a: SessionSnapshot, b: SessionSnapshot): number {
   if (a.needsAttention !== b.needsAttention) return a.needsAttention ? -1 : 1
   const rank = (s: SessionSnapshot) => (s.status === 'working' ? 0 : s.status === 'idle' ? 1 : 2)

@@ -1,7 +1,7 @@
 # Torc
 
 A fleet console for CLI coding agents. Run several Claude Code sessions side by side, see at a glance
-which one is working and which one is blocked on you, and drive all of it from ⌘K.
+which one is working and which one is blocked by you, and drive all of it from ⌘K.
 
 Torc is **not** an editor. Keep editing in VS Code or Cursor. Torc is the layer above the terminal
 that the multi-agent workflow is missing.
