@@ -6,11 +6,17 @@ import { join } from 'node:path'
  * Walks Torc through the things a person actually does in a session and asserts
  * the result of each, rather than screenshotting and eyeballing. Run with:
  *
- *   TORC_SCENARIOS=/tmp/scenarios npm run dev
+ *   npm run scenarios
  *
  * Every check prints PASS or FAIL with what it expected, so a regression is
- * obvious in the log without opening a single image.
+ * obvious in the log without opening a single image — and the counts come back
+ * to the caller so a red run can set a non-zero exit code. Printing a failure
+ * nobody's exit code reflects is how 23 assertions sat here unable to speak.
  */
+export interface ScenarioResult {
+  passed: number
+  failed: number
+}
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 let passed = 0
@@ -26,7 +32,10 @@ function check(name: string, ok: boolean, detail = ''): void {
   }
 }
 
-export async function runScenarios(win: BrowserWindow, outDir: string): Promise<void> {
+export async function runScenarios(
+  win: BrowserWindow,
+  outDir: string,
+): Promise<ScenarioResult> {
   mkdirSync(outDir, { recursive: true })
 
   const js = async <T>(code: string): Promise<T> =>
@@ -36,6 +45,36 @@ export async function runScenarios(win: BrowserWindow, outDir: string): Promise<
     const image = await win.webContents.capturePage()
     writeFileSync(join(outDir, `${name}.png`), image.toPNG())
   }
+
+  // ── a known starting point ───────────────────────────────────────────────
+  // Session restore runs on mount, so on a machine with a saved layout the
+  // harness would be counting the user's panes as well as its own: three ⌘T's on
+  // top of one restored pane is four, and every count, title and wrap assertion
+  // after it goes red for a reason that has nothing to do with the code. Restore
+  // may still be in flight when we get here, so only a zero that *holds* counts.
+  const paneCount = async () => (await state()).paneCount as number
+  let empty = false
+  for (let attempt = 0; attempt < 10 && !empty; attempt++) {
+    await js(`(async () => {
+      const store = window.__torc.store
+      while (store.getState().panes.length) await store.getState().closePane()
+    })()`)
+    await delay(600)
+    if ((await paneCount()) === 0) {
+      await delay(600)
+      empty = (await paneCount()) === 0
+    }
+  }
+  // Named, so a failure here reads as "the harness never got a clean slate"
+  // rather than surfacing as six mysterious count mismatches further down.
+  check('the fleet starts empty', empty, `got ${await paneCount()}`)
+
+  // Closing the panes isn't the whole of it. `restore()` opens each saved pane
+  // through newSession, which records `lastCwd` — so a layout saved by the *last*
+  // run keeps feeding the directory fallback after its panes are gone, and the
+  // cd assertions at the bottom then start from wherever that run happened to
+  // finish. Reset it so the run doesn't depend on the one before it.
+  await js(`window.__torc.store.setState({ lastCwd: null, recent: [] })`)
 
   // ── opening terminals ────────────────────────────────────────────────────
   await js(`window.__torc.store.getState().newSession({ kind: 'shell' })`)
@@ -204,4 +243,5 @@ export async function runScenarios(win: BrowserWindow, outDir: string): Promise<
   check('a new terminal opens where you are now', opened.cwd === moved.cwd, opened.cwd)
 
   console.log(`[scenario] ${passed} passed, ${failed} failed`)
+  return { passed, failed }
 }

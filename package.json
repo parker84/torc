@@ -9,6 +9,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "scenarios": "electron-vite build && ELECTRON_RENDERER_URL= TORC_SCENARIOS=${TORC_SCENARIOS:-/tmp/torc-scenarios} TORC_QA_EXIT=1 electron .",
     "build": "tsc --noEmit && electron-vite build",
     "dist": "npm run build && electron-builder",
     "icon": "node scripts/make-icon.mjs",

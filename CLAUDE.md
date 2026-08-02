@@ -43,14 +43,20 @@ The Electron harnesses drive the renderer through `window.__torc` and capture wi
 signed-in `claude` on the machine:
 
 ```bash
-TORC_SCENARIOS=/tmp/scen npm run dev    # 23 assertions over real user flows
+npm run scenarios                       # 27 assertions over real user flows; exits 1 on red
 TORC_QA=/tmp/shots npm run dev          # screenshots itself
 TORC_DEMO=/tmp/demo npm run dev         # a real fleet across repos, read-only
 TORC_DEBUG_HOOKS=1 npm run dev          # log every hook event received
 ```
 
-`TORC_QA_MODE` selects a QA scenario — `restore`, `split`, `palette`, `shim`, `keys`. Note the
-scenario harness currently prints failures but still exits 0 (#13), so read the log.
+`npm run scenarios` runs the production bundle rather than the dev server, because that's the only
+way the exit code survives to the shell — `electron-vite dev` swallows it. Override the output
+directory with `TORC_SCENARIOS=/somewhere`; it defaults to `/tmp/torc-scenarios`. It clears the fleet
+before it starts, so a saved layout can't be counted as part of the run — which also means **a
+scenario run overwrites your saved layout**, since the harnesses share `~/.torc/` with the real app.
+
+`TORC_QA_MODE` selects a QA scenario — `restore`, `split`, `palette`, `shim`, `keys`. The QA and demo
+harnesses still only print, so read their logs.
 
 ## Invariants
 

@@ -116,14 +116,39 @@ function createWindow(): void {
 
     if (process.env.TORC_SCENARIOS && mainWindow) {
       const win = mainWindow
-      void import('./scenarios').then(({ runScenarios }) =>
-        runScenarios(win, process.env.TORC_SCENARIOS!).then(() => {
-          if (process.env.TORC_QA_EXIT) {
-            sessions.disposeAll()
-            app.quit()
-          }
-        }),
-      )
+      // A red assertion has to reach the shell, or the suite is decoration.
+      // `app.quit()` honours process.exitCode, so setting it before quitting is
+      // enough — and a harness that *threw* has not passed either, which is what
+      // the catch is for: without it the rejection is swallowed and the run
+      // still looks clean.
+      const finish = (code: number): void => {
+        process.exitCode = code
+        if (!process.env.TORC_QA_EXIT) return
+        // Getting the code out of Electron takes some care. Its own shutdown
+        // exits 0 whatever `process.exitCode` says — the same bug this ticket is
+        // about, one layer out. But leaving abruptly is worse: both `app.exit()`
+        // and a bare `process.exit()` orphan the GPU and renderer helpers, which
+        // keep the inherited stdout open, so the runner sits on a pipe that never
+        // closes and the run hangs instead of failing. So: quit in order, and set
+        // the code once the helpers are down.
+        app.once('quit', () => process.exit(code))
+        sessions.disposeAll()
+        app.quit()
+      }
+      void import('./scenarios')
+        .then(({ runScenarios }) => runScenarios(win, process.env.TORC_SCENARIOS!))
+        .then(({ passed, failed }) => {
+          console.log(
+            failed > 0
+              ? `[scenario] FAILED — ${failed} of ${passed + failed} assertions`
+              : `[scenario] all ${passed} assertions passed`,
+          )
+          finish(failed > 0 ? 1 : 0)
+        })
+        .catch((error) => {
+          console.error('[scenario] harness threw before it could finish:', error)
+          finish(1)
+        })
       return
     }
 
