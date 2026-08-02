@@ -8,7 +8,7 @@ scope, inspiration and technical design.*
 ## The one-liner
 
 Torc is a terminal-first workspace for running many CLI coding agents at once — see what every agent
-is doing, know instantly which one is blocked on you, and drive the whole thing from a Cmd-K palette.
+is doing, know instantly which one is blocked by you, and drive the whole thing from a Cmd-K palette.
 
 ## The motivation (the actual frustration)
 

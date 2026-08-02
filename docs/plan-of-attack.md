@@ -96,6 +96,22 @@ work is open, and both want an explicit decision before any code.
       no open questions and may carry most of the value; the shared context bus has a real unresolved
       risk around one agent's wrong conclusion propagating to four others. Ship the first, let usage
       decide on the second. Sequencing and open questions are in the ticket.
+- [ ] **#23 — Define the agent adapter seam.** The blocker for every ticket below it. Monitoring is
+      Claude-Code-shaped from `AgentsPoller` down, and a second agent can't be added without either
+      forking those files or threading `if (agent === …)` through them. Deliverable is the interface
+      plus Claude Code refactored onto it with the existing tests green — that refactor is the proof
+      the seam is in the right place. The hard part is that **partial support is the normal case**: an
+      agent reporting status but not tokens must render a live card with no cost, never a fabricated
+      zero.
+- [ ] **#24 — Codex adapter.** Depends on #23.
+- [ ] **#25 — OpenCode adapter.** Depends on #23. Worth doing early despite being the least
+      established of the four: it's open source, so its state surfaces can be read rather than
+      reverse-engineered, and anything missing can be contributed upstream.
+- [ ] **#26 — Gemini CLI adapter.** Depends on #23.
+- [ ] **#27 — aider adapter.** Depends on #23, and the useful stress test of whether the seam is
+      general — aider is a chat loop over a repo, not a tool-call lifecycle, so it's the one most
+      likely not to fit. If it can't report state without parsing output, it gets closed won't-fix
+      rather than granted an exception to the no-scraping invariant.
 - [ ] **#16 — Scope what it takes to ship Torc as a real desktop app.** `npm run dist` already makes
       a working `.app` and `.dmg`; `identity: null` in `electron-builder.yml` is what stands between
       that and something a stranger can open. Signing plus notarization is the known cost (Apple
@@ -107,6 +123,23 @@ work is open, and both want an explicit decision before any code.
 ---
 
 ## Decisions log
+
+**2026-07-29 — Agent adapters get tickets now, ahead of M3 being decided.** This file previously said
+M4 shouldn't have tickets until M3 was settled. That's now overridden for the adapter half of M4
+(#23–#27). *Why:* the landing page in `torc-web` names Codex, OpenCode, Gemini CLI and aider as "runs
+today · adapter next", which turns them from a backlog idea into a public commitment — and an
+untracked public commitment is the thing this document exists to prevent. The rest of M4 (IDE
+registration, session replay, natural-language ⌘K, remote panes) still has no tickets and still
+shouldn't. *Rejected:* dropping the agent names from the site instead. They're the honest answer to
+"will this work with what I run", and the site distinguishes the two support tiers explicitly rather
+than implying parity. (#23–#27)
+
+**2026-07-29 — The site states two support tiers, not one.** "Runs today" (any CLI, because the panes
+are real PTYs) is kept visibly separate from "full monitoring" (needs that agent's structured surfaces
+mapped). *Why:* collapsing them into "supports Codex" is a promise the first launch breaks — the pane
+works and the card stays empty, which reads as a bug rather than a roadmap. The adapter interface has
+to preserve this distinction at runtime too, which is why partial support is a first-class case in
+#23 rather than an error path. (#23, torc-web)
 
 **2026-07-29 — Location follows cwd, the title stays put.** When a shell pane `cd`s elsewhere, the
 rail subtitle, Mission Control footer, status bar and title strip follow. The bold title does not.
@@ -137,6 +170,14 @@ From `docs/context-brief.md`, with status corrected:
 | **M1** | Fleet monitoring — session ids, hook bridge, transcript tailer, poller, attention | ✅ shipped |
 | **M2** | Mission Control, full ⌘K, splits, persistence and resume | ✅ shipped |
 | **M3** | Cross-agent context sharing | parked on design — #1 |
-| **M4** | Register as an IDE for diff review, session replay, natural-language ⌘K, Codex/Gemini/aider adapters, remote panes | backlog |
+| **M4** | Register as an IDE for diff review, session replay, natural-language ⌘K, agent adapters, remote panes | adapters ticketed — #23–#27; rest backlog |
 
-Nothing in M4 has a ticket yet. That's deliberate — it shouldn't until M3 is decided.
+The adapter half of M4 is ticketed (#23–#27) because the landing page now names those agents in
+public; see the decisions log. Everything else in M4 still has no ticket, and still shouldn't until
+M3 is decided.
+
+## Related repos
+
+| Repo | What | Visibility |
+|---|---|---|
+| [`parker84/torc-web`](https://github.com/parker84/torc-web) | The `torc.sh` landing page and launch waitlist. Next.js on Vercel. Ships the same three themes as the app, and quotes real numbers off `docs/screenshots/` — if those captures are replaced, the stats in its `src/lib/config.ts` move with them. | private |

@@ -1,7 +1,7 @@
 # Torc
 
 A fleet console for CLI coding agents — several Claude Code sessions side by side, with a live view
-of which one is working and which one is blocked on you. Electron + React 19 + TypeScript, `node-pty`
+of which one is working and which one is blocked by you. Electron + React 19 + TypeScript, `node-pty`
 and xterm.js for real terminals. Not an editor.
 
 ## Start here
