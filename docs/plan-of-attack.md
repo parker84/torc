@@ -111,6 +111,13 @@ work is open, and both want an explicit decision before any code.
       no open questions and may carry most of the value; the shared context bus has a real unresolved
       risk around one agent's wrong conclusion propagating to four others. Ship the first, let usage
       decide on the second. Sequencing and open questions are in the ticket.
+- [ ] **#34 — The orchestrator tier: one lead, many agents beneath it.** Scoping only; no build
+      tickets yet. Design notes and the phase order are in
+      [`docs/orchestration.md`](orchestration.md). The short version: Claude Code's agent teams write
+      everything we need to disk, a teammate is a sidechain rather than a session or a process, the
+      poller cannot see one at all, and Torc's token and cost numbers are consequently *wrong* rather
+      than merely incomplete for any session that fans out. Wants scoping alongside #23 — both need
+      the same seam, and a child with no process and no poll status is the same partial-support case.
 - [ ] **#23 — Define the agent adapter seam.** The blocker for every ticket below it. Monitoring is
       Claude-Code-shaped from `AgentsPoller` down, and a second agent can't be added without either
       forking those files or threading `if (agent === …)` through them. Deliverable is the interface
@@ -138,6 +145,17 @@ work is open, and both want an explicit decision before any code.
 ---
 
 ## Decisions log
+
+**2026-08-02 — The orchestrator tier gets one scoping ticket and a design doc, not build tickets.**
+#34 plus [`docs/orchestration.md`](orchestration.md). *Why:* the shape isn't settled — two open
+questions (observe native teams only, or make Torc the substrate agents call; read-only children, or
+messaging from Torc) change what the first phase should generalize, and splitting it into five build
+tickets now would freeze an answer we haven't picked. A design doc can be argued with; a ticket board
+implies the argument is over. *Rejected:* opening the five phase tickets immediately — and also
+leaving it undocumented until we build it, which loses the one thing that has to survive: the disk
+layout and the four findings behind it were established by running a real team, not by reading docs,
+and the docs were wrong about the layout. *Also settled:* the fleet becomes a tree and a pane stops
+being the same thing as an agent — a child has no pty, so it never gets a grid slot. (#34, #23, #1)
 
 **2026-07-29 — Agent adapters get tickets now, ahead of M3 being decided.** This file previously said
 M4 shouldn't have tickets until M3 was settled. That's now overridden for the adapter half of M4

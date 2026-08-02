@@ -16,7 +16,9 @@ Two rules that keep it worth reading:
 2. **A decision goes in the plan's decisions log when it's made**, with the reasoning and what was
    rejected — otherwise the next agent re-litigates it.
 
-Supporting docs: [`docs/architecture.md`](docs/architecture.md) for how monitoring works,
+Supporting docs: [`docs/orchestration.md`](docs/orchestration.md) for the orchestrator tier — one lead
+with agents beneath it — which is design notes under #34 and nothing built yet,
+[`docs/architecture.md`](docs/architecture.md) for how monitoring works,
 [`docs/context-brief.md`](docs/context-brief.md) for why the project exists and what the design is.
 The context brief is a snapshot from the start of the project; where it and the plan disagree about
 status, the plan is right.
