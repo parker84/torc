@@ -25,15 +25,18 @@ jobs:
       # --ignore-scripts skips two things a runner has no use for: Electron's
       # postinstall, which downloads the ~100MB binary, and this repo's own
       # `electron-rebuild -f -w node-pty`, which builds node-pty against
-      # Electron's ABI and needs that binary present.
-      #
-      # Nothing here needs either. tsc reads Electron's bundled .d.ts, which
-      # ships in the package, and node-pty defers loading its native binding
-      # until `spawn` — which the SessionManager tests never reach, because they
-      # inject a fake pty. Verified in a clean checkout with no `pty.node` on
-      # disk: 85/85 green. If a test ever spawns a real pty, this needs an
-      # `npm rebuild node-pty` before it.
+      # Electron's ABI and needs that binary present. tsc is fine without it —
+      # it reads the .d.ts that ships inside the electron package.
       - run: npm ci --ignore-scripts
+
+      # node-pty is not optional here, and the reason is platform-specific
+      # enough to be worth writing down: it ships prebuilds for darwin and
+      # win32 only, so on a Mac `--ignore-scripts` alone still imports fine and
+      # on linux-x64 it throws at import — which takes SessionManager.test.ts
+      # (13 cases) down with it, since SessionManager requires node-pty at
+      # module scope. Building against the runner's own Node is what vitest
+      # wants anyway, and it's node-gyp only, no Electron.
+      - run: npm rebuild node-pty
 
       - run: npm run typecheck
 

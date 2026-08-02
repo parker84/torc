@@ -78,11 +78,14 @@ when agents are opening the PRs.
       add `npm run scenarios`. The assertions already exist and are already right; they just can't
       speak. Highest leverage item on this list.
 - [x] **#14 — CI: typecheck and tests on every PR.** Shipped 2026-08-02. One workflow, Ubuntu,
-      `npm ci --ignore-scripts`. The ticket assumed the `node-pty` rebuild had to be replaced with a
-      plain-Node one; it doesn't — verified in a clean checkout with no `pty.node` on disk, 85/85
-      green, because node-pty defers loading its binding until `spawn` and the `SessionManager` tests
-      inject a fake pty. A test that spawns a real one would need `npm rebuild node-pty` added.
-      Electron harnesses stay local, as planned — they need a display and a signed-in `claude`.
+      `npm ci --ignore-scripts` plus `npm rebuild node-pty`. The rebuild is not optional and the
+      reason is platform-specific: node-pty ships prebuilds for darwin and win32 only, so a clean
+      `--ignore-scripts` install imports fine on a Mac and throws at import on linux-x64 — which takes
+      `SessionManager.test.ts` down with it, since `SessionManager` requires node-pty at module scope.
+      Worth knowing because it was learned the hard way: a clean-checkout test on macOS said the
+      rebuild was unnecessary, and CI's first run on Ubuntu disproved it. A local clean room is not a
+      Linux runner, which is most of the argument for having CI at all. Electron harnesses stay local,
+      as planned — they need a display and a signed-in `claude`.
 - [x] **#15 — A plan-of-attack doc, and a CLAUDE.md that points at it.** This file, `CLAUDE.md`, and
       the stale status section in `docs/context-brief.md` redirected here. Closed by the PR that adds
       this line — which is the upkeep rule working as intended.
