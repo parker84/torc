@@ -81,10 +81,18 @@ when agents are opening the PRs.
 - [ ] **#10 — Let a pane be renamed.** The condition attached to the decision below: if the title
       stays stable while the location moves, the title has to be fixable by hand.
 - [ ] **#17 — Scrolling back through a pane feels slow.** Speed and ⌥ fast-scroll landed 2026-07-29;
-      the ticket stays open for the *sticky* half. `scrollLines()` still moves in whole rows, so a
-      gesture is stationary until it crosses ~16px and then jumps — and whether macOS momentum events
-      survive our `preventDefault()` is still unmeasured. Wants `src/main/probe.ts`, which #12
-      deletes; coordinate the order.
+      sensitivity went 5 → 8 on 2026-08-02 after measuring, which closes the *dead zone* half. The
+      row is 18px, not the ~16px the original reasoning assumed, and a trackpad's smallest delta is
+      about 3px — so at 5 a slow drag spent one event in six moving nothing (7/40 measured), because
+      `scrollLines()` only moves in whole rows. At 8 that is 0/40. Rule of thumb for anyone retuning
+      it: keep `SCROLL_SENSITIVITY ≥ rowHeight / 3`.
+
+      What keeps the ticket open is sub-row smoothness — the view still steps in whole rows, 1–2 at a
+      slow drag, and that needs xterm to overdraw a row beyond the viewport, which it doesn't. Also
+      still unmeasured: whether macOS momentum events survive our `preventDefault()`. That one can't
+      be answered synthetically — dispatching a `WheelEvent` from script skips the compositor layer
+      that generates momentum — so it needs a real hand on a trackpad via the `trace` mode of
+      `src/main/probe.ts`, which #12 deletes; coordinate the order.
 
 ### P2 — the wedge, and getting it into other people's hands
 
