@@ -91,6 +91,14 @@ export function buildCommands(): Command[] {
       run: () => useStore.getState().restartPane(),
     },
     {
+      id: 'session.rename',
+      title: 'Rename pane',
+      subtitle: 'A name you chose beats the folder and the ai-title',
+      group: 'Session',
+      keywords: ['name', 'title', 'label', 'call'],
+      run: () => useStore.getState().startRename(),
+    },
+    {
       id: 'session.close',
       title: 'Close pane',
       group: 'Session',

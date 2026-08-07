@@ -10,8 +10,10 @@ vi.mock('../env', () => ({
 }))
 
 // The cwd poller runs on a timer, and these tests advance the clock past it.
-// Left real, it would run lsof against pids that never existed.
-vi.mock('./cwdProbe', () => ({ probeCwds: async () => new Map<number, string>() }))
+// Left real, it would run lsof against pids that never existed. Hoisted so a
+// test can seed it and drive a pane into another directory.
+const probedCwds = vi.hoisted(() => new Map<number, string>())
+vi.mock('./cwdProbe', () => ({ probeCwds: async () => probedCwds }))
 
 /**
  * Enough of node-pty to be wired up and then killed. `exit()` is the hook the
@@ -340,5 +342,77 @@ describe('SessionManager.write', () => {
   it('ignores a write to a pane that no longer exists', () => {
     const manager = new TestManager(recorder().events)
     expect(() => manager.write('never-existed', 'x')).not.toThrow()
+  })
+})
+
+describe('SessionManager.rename', () => {
+  let rec: ReturnType<typeof recorder>
+  let manager: TestManager
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    FakePty.spawned = []
+    probedCwds.clear()
+    rec = recorder()
+    manager = new TestManager(rec.events)
+  })
+  afterEach(() => {
+    manager.disposeAll()
+    vi.useRealTimers()
+  })
+
+  it('takes the name the user typed and tells the renderer', async () => {
+    const opened = await manager.create({ kind: 'shell', cwd: '/Users/b/side/torc' })
+    expect(opened.title).toBe('torc')
+
+    rec.updates.length = 0
+    manager.rename(opened.id, '  the   deploy  pane ')
+    // Collapsed and trimmed: a pasted paragraph would wreck the rail.
+    expect(manager.get(opened.id)!.title).toBe('the deploy pane')
+    expect(manager.get(opened.id)!.renamed).toBe(true)
+    expect(rec.updates.at(-1)!.title).toBe('the deploy pane')
+  })
+
+  it('leaves a renamed pane alone when it cds elsewhere', async () => {
+    const auto = await manager.create({ kind: 'shell', cwd: '/Users/b/side/torc' })
+    const named = await manager.create({ kind: 'shell', cwd: '/Users/b/side/torc' })
+    manager.rename(named.id, 'infra')
+
+    // Both panes walk into /tmp. The auto-titled one is renamed after it, which
+    // is exactly what a name the user chose has to survive.
+    probedCwds.set(FakePty.spawned[0].pid, '/tmp')
+    probedCwds.set(FakePty.spawned[1].pid, '/tmp')
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(manager.get(auto.id)!.title).toBe('tmp')
+    expect(manager.get(named.id)!.cwd).toBe('/tmp')
+    expect(manager.get(named.id)!.title).toBe('infra')
+  })
+
+  it('hands an emptied name back to Torc', async () => {
+    const opened = await manager.create({ kind: 'shell', cwd: '/Users/b/side/torc' })
+    manager.rename(opened.id, 'infra')
+    manager.rename(opened.id, '   ')
+
+    expect(manager.get(opened.id)!.title).toBe('torc')
+    expect(manager.get(opened.id)!.renamed).toBeUndefined()
+  })
+
+  it('keeps a restored name verbatim rather than numbering it', async () => {
+    // Two panes in one repo are normally "torc" and "torc 2"; a name someone
+    // chose is not Torc's to renumber, even when it collides.
+    await manager.create({ kind: 'shell', cwd: '/Users/b/side/torc' })
+    const second = await manager.create({
+      kind: 'shell',
+      cwd: '/Users/b/side/torc',
+      title: 'torc',
+      renamed: true,
+    })
+    expect(second.title).toBe('torc')
+    expect(second.renamed).toBe(true)
+  })
+
+  it('ignores a rename for a pane that no longer exists', () => {
+    expect(() => manager.rename('never-existed', 'x')).not.toThrow()
   })
 })

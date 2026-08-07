@@ -57,6 +57,7 @@ const api: TorcApi = {
     kill: (id) => ipcRenderer.invoke(IPC.sessionKill, id),
     list: () => ipcRenderer.invoke(IPC.sessionList),
     markRead: (id) => ipcRenderer.send(IPC.sessionMarkRead, id),
+    rename: (id, title) => ipcRenderer.send(IPC.sessionRename, id, title),
   },
   home: () => ipcRenderer.invoke(IPC.appHome),
   defaultCwd: () => ipcRenderer.invoke(IPC.appDefaultCwd),

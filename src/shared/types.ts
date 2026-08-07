@@ -28,6 +28,12 @@ export interface SessionSpec {
   cwd: string
   /** Human label; defaults to the basename of cwd. */
   title?: string
+  /**
+   * The title above was chosen by a person, so take it verbatim — no numbering,
+   * and it doesn't follow the pane into another directory. Set when restoring or
+   * restarting a pane the user had renamed.
+   */
+  renamed?: boolean
   /** claude only */
   model?: string
   permissionMode?: PermissionMode
@@ -62,6 +68,8 @@ export interface SessionSnapshot {
   title: string
   /** Claude's own `ai-title` for the conversation, once it exists (M1). */
   aiTitle?: string
+  /** The user named this pane: the title outranks `aiTitle` and ignores cwd. */
+  renamed?: boolean
   status: AgentStatus
   startedAt: number
   exitCode?: number
@@ -82,6 +90,7 @@ export const IPC = {
   sessionResize: 'session:resize',
   sessionKill: 'session:kill',
   sessionList: 'session:list',
+  sessionRename: 'session:rename',
   sessionMarkRead: 'session:mark-read',
   /** main → renderer */
   sessionData: 'session:data',
@@ -111,6 +120,8 @@ export interface SavedPane {
   cwd: string
   title: string
   claudeSessionId?: string
+  /** Kept, or a restored pane would go back to being called after its folder. */
+  renamed?: boolean
   /** False when the transcript is gone, so resuming would fail. */
   resumable?: boolean
 }
@@ -136,6 +147,8 @@ export interface TorcApi {
     list(): Promise<SessionSnapshot[]>
     /** Clears the "finished, unread" attention flag for a pane. */
     markRead(id: string): void
+    /** Names a pane by hand. An empty title hands it back to Torc's guess. */
+    rename(id: string, title: string): void
   }
   home(): Promise<string>
   /** Where to open an agent when the user hasn't said. */

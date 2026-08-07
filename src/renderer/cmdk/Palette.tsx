@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import { fuzzy } from './fuzzy'
 import { buildCommands, GROUP_ORDER, type Command } from './registry'
 import { statusLabel } from '../components/StatusDot'
+import { paneLabel } from '../state/label'
 
 interface Row {
   key: string
@@ -91,7 +92,7 @@ export function Palette() {
 
     const paneRows: Row[] = panes.map((pane, index) => ({
       key: `pane:${pane.id}`,
-      title: pane.aiTitle || pane.title,
+      title: paneLabel(pane),
       subtitle: `${statusLabel(pane.status)} · ${pane.cwd}`,
       group: 'Agents',
       hint: index < 9 ? `⌘${index + 1}` : undefined,
