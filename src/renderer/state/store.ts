@@ -47,6 +47,11 @@ interface TorcState {
   lastCwd: string | null
   /** Pane ids, most recently focused first. Drives ⌃Tab. */
   recent: string[]
+  /**
+   * The pane whose name is being edited in the rail, if any. In the store rather
+   * than the rail row so ⌘K and the pane menu can both start the edit.
+   */
+  renamingId: string | null
 
   newSession(spec: Omit<SessionSpec, 'cwd'> & { cwd?: string }): Promise<void>
   closePane(id?: string): Promise<void>
@@ -65,6 +70,11 @@ interface TorcState {
   /** Back to the pane you were just in — the two-place shuffle you do most. */
   jumpBack(): void
   restartPane(id?: string): Promise<void>
+  /** Opens the inline name editor. Defaults to the focused pane. */
+  startRename(id?: string): void
+  /** Commits a name; an empty one hands the pane back to Torc's own guess. */
+  renamePane(id: string, title: string): void
+  cancelRename(): void
   setPalette(open: boolean): void
   togglePalette(): void
   setPaletteQuery(query: string): void
@@ -89,6 +99,7 @@ export const useStore = create<TorcState>((set, get) => ({
   error: null,
   lastCwd: null,
   recent: [],
+  renamingId: null,
 
   async newSession(spec) {
     // Explicit choice → wherever the pane you're looking at has got to → the
@@ -218,6 +229,7 @@ export const useStore = create<TorcState>((set, get) => ({
         kind: pane.kind,
         cwd: pane.cwd,
         title: pane.title,
+        renamed: pane.renamed,
         // Resume only when the transcript is still there; otherwise the pane
         // comes back as a fresh agent in the right repo.
         resumeSessionId: pane.resumable ? pane.claudeSessionId : undefined,
@@ -250,9 +262,26 @@ export const useStore = create<TorcState>((set, get) => ({
       kind: pane.kind,
       cwd: pane.cwd,
       title: pane.title,
+      renamed: pane.renamed,
       resumeSessionId: pane.kind === 'claude' ? pane.claudeSessionId : undefined,
     })
   },
+  startRename(id) {
+    const target = id ?? get().activeId
+    if (!target) return
+    // Renaming a pane you can't see is disorienting; the editor is in the rail.
+    set({ renamingId: target, view: 'workspace' })
+  },
+
+  renamePane(id, title) {
+    // Main owns the title, as it owns every other field on a snapshot; it
+    // normalises the string and pushes the result back through onUpdate.
+    window.torc.sessions.rename(id, title)
+    set((s) => ({ renamingId: s.renamingId === id ? null : s.renamingId }))
+  },
+
+  cancelRename: () => set({ renamingId: null }),
+
   // Opening always starts from a clean query.
   setPalette: (open) => set({ paletteOpen: open, paletteQuery: '' }),
   togglePalette: () => set((s) => ({ paletteOpen: !s.paletteOpen, paletteQuery: '' })),
@@ -293,8 +322,11 @@ document.documentElement.dataset.theme = useStore.getState().theme
  */
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 useStore.subscribe((state, previous) => {
+  // Titles are in the key because a rename is a change worth persisting on its
+  // own; without it the new name only reaches disk if a pane later opens, closes
+  // or moves.
   const relevant = (s: typeof state) =>
-    `${s.theme}|${s.activeId}|${s.panes.map((p) => `${p.kind}:${p.cwd}:${p.claudeSessionId ?? ''}`).join(',')}`
+    `${s.theme}|${s.activeId}|${s.panes.map((p) => `${p.kind}:${p.cwd}:${p.title}:${p.claudeSessionId ?? ''}`).join(',')}`
   if (relevant(state) === relevant(previous)) return
 
   if (saveTimer) clearTimeout(saveTimer)
@@ -310,6 +342,7 @@ useStore.subscribe((state, previous) => {
         kind: p.kind,
         cwd: p.cwd,
         title: p.title,
+        renamed: p.renamed,
         claudeSessionId: p.claudeSessionId,
       })),
     })
@@ -329,11 +362,13 @@ if (import.meta.env.DEV || window.torc.qaEnabled) {
         theme: s.theme,
         view: s.view,
         paletteOpen: s.paletteOpen,
+        renamingId: s.renamingId,
         activeId: s.activeId,
         paneCount: s.panes.length,
         panes: s.panes.map((p) => ({
           kind: p.kind,
           title: p.title,
+          renamed: p.renamed,
           status: p.status,
           needsAttention: p.needsAttention,
           aiTitle: p.aiTitle,

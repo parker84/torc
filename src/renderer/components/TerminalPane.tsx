@@ -330,7 +330,10 @@ export function TerminalPane({ pane, active, visible }: Props) {
       } catch {
         // Pane not laid out yet; the ResizeObserver will catch up.
       }
-      if (active) term.focus()
+      // Not while the rail is editing a pane's name: leaving Mission Control to
+      // rename makes this pane visible, and a frame later the terminal would
+      // take the keystrokes meant for the name field.
+      if (active && !useStore.getState().renamingId) term.focus()
     })
     return () => cancelAnimationFrame(raf)
   }, [active, visible, pane.id])

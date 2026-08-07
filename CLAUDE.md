@@ -43,7 +43,7 @@ The Electron harnesses drive the renderer through `window.__torc` and capture wi
 signed-in `claude` on the machine:
 
 ```bash
-npm run scenarios                       # 27 assertions over real user flows; exits 1 on red
+npm run scenarios                       # 32 assertions over real user flows; exits 1 on red
 TORC_QA=/tmp/shots npm run dev          # screenshots itself
 TORC_DEMO=/tmp/demo npm run dev         # a real fleet across repos, read-only
 TORC_DEBUG_HOOKS=1 npm run dev          # log every hook event received

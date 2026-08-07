@@ -242,6 +242,64 @@ export async function runScenarios(
   const opened = await pane()
   check('a new terminal opens where you are now', opened.cwd === moved.cwd, opened.cwd)
 
+  // ── naming a pane yourself ───────────────────────────────────────────────
+  // The title staying put while the location moves is only defensible if the
+  // title can be fixed by hand — so a rename has to outlast the next cd, and
+  // has to be undoable without knowing what the pane was called before.
+  const paneById = async (id: string) =>
+    js<{ cwd: string; title: string; renamed?: boolean }>(
+      `(() => { const p = window.__torc.store.getState().panes.find((p) => p.id === ${JSON.stringify(id)}); return { cwd: p.cwd, title: p.title, renamed: p.renamed }; })()`,
+    )
+  await js(
+    `window.__torc.store.getState().renamePane(${JSON.stringify(wanderer)}, 'the deploy box')`,
+  )
+  await delay(400)
+  const named = await paneById(wanderer)
+  check('a pane takes the name you give it', named.title === 'the deploy box', named.title)
+
+  await js(`window.__torc.store.getState().sendToPane(${JSON.stringify(wanderer)}, 'cd /usr')`)
+  await delay(4000)
+  const stillNamed = await paneById(wanderer)
+  check(
+    'and keeps it when the pane cds somewhere else',
+    stillNamed.title === 'the deploy box' && stillNamed.cwd.endsWith('/usr'),
+    `${stillNamed.title} in ${stillNamed.cwd}`,
+  )
+
+  await js(`window.__torc.store.getState().renamePane(${JSON.stringify(wanderer)}, '   ')`)
+  await delay(400)
+  const unnamed = await paneById(wanderer)
+  check(
+    'an emptied name hands the pane back to Torc',
+    unnamed.title === 'usr' && !unnamed.renamed,
+    unnamed.title,
+  )
+
+  // The pointer route to the same thing: ⋮ opens the pane menu, Rename opens the
+  // editor in the rail.
+  // Each click is followed by a beat: React commits the state change after the
+  // handler returns, so querying in the same expression sees the old DOM.
+  await js(`document.querySelector('[data-testid="pane-menu-button"]').click()`)
+  await delay(300)
+  const menuOpened = await js<boolean>(
+    `Boolean(document.querySelector('[data-testid="pane-menu"]'))`,
+  )
+  check('the ⋮ button opens the pane menu', menuOpened === true)
+  await shot('scenario-pane-menu')
+
+  const clicked = await js<boolean>(`(() => {
+    const items = [...document.querySelectorAll('[data-testid="pane-menu"] [role="menuitem"]')]
+    const rename = items.find((i) => i.textContent.startsWith('Rename'))
+    if (!rename) return false
+    rename.click()
+    return true
+  })()`)
+  await delay(300)
+  const editing = await js<boolean>(`Boolean(document.querySelector('aside input'))`)
+  check('and Rename opens the name editor in the rail', clicked === true && editing === true)
+
+  await js(`window.__torc.store.getState().cancelRename()`)
+
   console.log(`[scenario] ${passed} passed, ${failed} failed`)
   return { passed, failed }
 }

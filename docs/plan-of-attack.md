@@ -99,8 +99,12 @@ when agents are opening the PRs.
 - [x] **#15 — A plan-of-attack doc, and a CLAUDE.md that points at it.** This file, `CLAUDE.md`, and
       the stale status section in `docs/context-brief.md` redirected here. Closed by the PR that adds
       this line — which is the upkeep rule working as intended.
-- [ ] **#10 — Let a pane be renamed.** The condition attached to the decision below: if the title
-      stays stable while the location moves, the title has to be fixable by hand.
+- [x] **#10 — Let a pane be renamed.** Shipped 2026-08-07. The condition attached to the decision
+      below is now met: the title stays stable while the location moves, and it's fixable by hand.
+      A pane menu on the rail row — ⋮ or right-click — with Rename, Copy path, the two Open-ins,
+      Restart and Close; double-click a row, or ⌘K → "Rename pane", for the same editor. The name
+      lives on the snapshot in main (`renamed`), so it survives a cd, a restart, an agent quitting
+      into a shell, and restore. Emptying it hands the pane back to Torc's own guess.
 - [ ] **#17 — Scrolling back through a pane feels slow.** Speed and ⌥ fast-scroll landed 2026-07-29;
       sensitivity went 5 → 8 on 2026-08-02 after measuring, which closes the *dead zone* half. The
       row is 18px, not the ~16px the original reasoning assumed, and a trackpad's smallest delta is
@@ -160,6 +164,24 @@ work is open, and both want an explicit decision before any code.
 
 ## Decisions log
 
+**2026-08-07 — A name the user typed outranks the ai-title, and Torc never edits it.** The rail,
+palette and Mission Control read `paneLabel()`: renamed title → Claude's ai-title → the folder name.
+A renamed pane is also exempt from the cwd-follows rename and from ` 2` numbering. *Why:* the rail
+prefers the ai-title because "Fixing the wheel sensitivity" beats "torc 2" — but if that ranking held
+after a rename, naming a pane would look undone the moment the agent titled its next turn, which
+reads as a bug. And numbering a chosen name means Torc editing a string it was told to keep; two
+panes both called "backend" is the user's business. *Rejected:* deriving "did the user name this?"
+from the string via `isAutoTitle` alone — a user is free to type something that looks like one of our
+guesses, so the flag is explicit and persisted. *Consequence:* `SessionSnapshot.renamed`, carried
+through `SavedPane` and `SessionSpec` so restore and restart don't quietly un-name a pane. (#10, #8)
+
+**2026-08-07 — The rail's pane menu is a React menu; the terminal's stays native.** *Why:* everything
+on the rail menu is a store action, so a React menu is themed with the rest of the app, drivable from
+the QA harnesses, and can hand straight off to the inline name editor. The pane-body menu has to stay
+native because its Copy/Paste needs the clipboard, which lives in main. *Rejected:* routing the rail
+menu through `IPC.paneContextMenu` too, for consistency — it would buy consistency and cost every
+assertion in `scenarios.ts`, since a native popup blocks the harness. (#10)
+
 **2026-08-02 — One Torc at a time, enforced by a lock; harnesses exempt.**
 `app.requestSingleInstanceLock()` in `index.ts`, taken before the monitor starts. *Why:* two
 instances silently corrupt each other. `~/.torc/state.json` is rewritten on every layout change, so
@@ -208,7 +230,7 @@ rail subtitle, Mission Control footer, status bar and title strip follow. The bo
 *Why:* auto-renaming reads more correct but titles then shift under you mid-session, and re-running
 `uniqueTitle` across the fleet means `cd`-ing one pane can renumber a different one — which pane gets
 the ` 2` is arbitrary. A stable title that can read stale is the better trade, conditional on #10
-making it renameable. (#8, #10)
+making it renameable — which shipped 2026-08-07. (#8, #10)
 
 **2026-07-29 — A new pane inherits the focused pane's live cwd.** Not `lastCwd`. *Why:* `lastCwd`
 means ⌘T opens where you last *started* something rather than where you *are*; the two diverge the

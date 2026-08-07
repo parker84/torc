@@ -340,6 +340,7 @@ function registerIpc(): void {
   )
   // Looking at a pane clears its "finished, unread" attention flag.
   ipcMain.on(IPC.sessionMarkRead, (_e, id: string) => monitor.markRead(id))
+  ipcMain.on(IPC.sessionRename, (_e, id: string, title: string) => sessions.rename(id, title))
   ipcMain.on(IPC.paneContextMenu, (event, id: string, selection: string) => {
     const window = BrowserWindow.fromWebContents(event.sender) ?? undefined
     const pasteable = clipboard.readText()

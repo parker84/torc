@@ -96,7 +96,11 @@ export class SessionManager {
       claudeSessionId: plan.claudeSessionId,
       kind: spec.kind,
       cwd: spec.cwd,
-      title: this.uniqueTitle(plan.title),
+      // A name the user typed is theirs: two panes both called "backend" is
+      // their business, and numbering one of them "backend 2" would be Torc
+      // editing a title it was told to keep.
+      title: spec.renamed ? plan.title : this.uniqueTitle(plan.title),
+      renamed: spec.renamed || undefined,
       status: 'launching',
       startedAt: Date.now(),
       needsAttention: false,
@@ -113,9 +117,10 @@ export class SessionManager {
       cols: 80,
       rows: 24,
       // A restored or restarted pane comes back with the title we derived last
-      // time, so "is this Torc's guess?" is a question about the string, not
-      // about who passed it in.
-      autoTitle: isAutoTitle(snapshot.title, spec.cwd),
+      // time, so for those "is this Torc's guess?" is a question about the
+      // string. A renamed pane says so outright — the user is free to have typed
+      // a name that happens to look like one of ours.
+      autoTitle: !spec.renamed && isAutoTitle(snapshot.title, spec.cwd),
     }
     this.sessions.set(id, session)
     this.wire(session, spec.kind === 'shell')
@@ -281,6 +286,23 @@ export class SessionManager {
     this.wire(session, true)
     this.events.onUpdate({ ...session.snapshot })
     this.events.onCreated?.({ ...session.snapshot })
+  }
+
+  /**
+   * Names a pane by hand. The title then stops following the pane's directory
+   * and outranks Claude's ai-title, because a name someone chose beats one
+   * anything else derived. An empty title is "never mind": the pane goes back to
+   * being called after wherever it currently is.
+   */
+  rename(id: string, title: string): void {
+    const session = this.sessions.get(id)
+    if (!session) return
+    // A single line of it — a pasted paragraph would wreck the rail.
+    const wanted = title.replace(/\s+/g, ' ').trim().slice(0, 60)
+    session.autoTitle = wanted.length === 0
+    session.snapshot.renamed = wanted.length > 0 || undefined
+    session.snapshot.title = wanted || this.uniqueTitle(titleFor(session.snapshot.cwd), id)
+    this.events.onUpdate({ ...session.snapshot })
   }
 
   /** Merges monitor-derived fields into a snapshot and notifies the renderer. */
