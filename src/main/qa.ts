@@ -452,12 +452,12 @@ async function checkNotification(win: BrowserWindow): Promise<void> {
     },
   ]
 
-  const first = updateAttention(probe(), win, (id) =>
+  const first = updateAttention([{ window: win, snapshots: probe() }], (_window, id) =>
     console.log(`[qa] notification click would focus ${id}`),
   )
   // Notifications fire on the transition, so a repeat of the same state must
   // stay silent — otherwise a busy agent would nag once per snapshot.
-  const second = updateAttention(probe(), win, () => {})
+  const second = updateAttention([{ window: win, snapshots: probe() }], () => {})
   console.log(`[qa] notifications shown: first=${first} repeat=${second} (expect 1 and 0)`)
   await delay(1500)
 }

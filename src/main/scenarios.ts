@@ -17,6 +17,18 @@ export interface ScenarioResult {
   passed: number
   failed: number
 }
+
+/**
+ * The bits of main the harness can't reach from the renderer. A second window is
+ * a main-process object, and "did closing it take its ptys with it" is a question
+ * only the SessionManager can answer.
+ */
+export interface ScenarioDeps {
+  windows(): BrowserWindow[]
+  liveSessions(): number
+  /** How many workspaces the saved layout currently holds. */
+  savedWindows(): number
+}
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 let passed = 0
@@ -35,6 +47,7 @@ function check(name: string, ok: boolean, detail = ''): void {
 export async function runScenarios(
   win: BrowserWindow,
   outDir: string,
+  deps: ScenarioDeps,
 ): Promise<ScenarioResult> {
   mkdirSync(outDir, { recursive: true })
 
@@ -299,6 +312,75 @@ export async function runScenarios(
   check('and Rename opens the name editor in the rail', clicked === true && editing === true)
 
   await js(`window.__torc.store.getState().cancelRename()`)
+
+  // ── a second window ─────────────────────────────────────────────────────
+  // A window is a workspace: it owns its panes and shows nobody else's. The
+  // assertions that matter are the boundary ones — a pane opened over there must
+  // not appear over here, and closing the window must take its ptys with it,
+  // because a pty with no window is a `claude` nobody can see or type into.
+  const paneCountHere = await paneCount()
+  const sessionsBefore = deps.liveSessions()
+
+  await js(`window.torc.newWindow('shell')`)
+  await delay(3000)
+  const second = deps.windows().find((w) => w !== win)
+  check('⌘N opens a second window', deps.windows().length === 2 && Boolean(second))
+  if (!second) {
+    console.log(`[scenario] ${passed} passed, ${failed} failed`)
+    return { passed, failed }
+  }
+
+  const secondReport = async () =>
+    (await second.webContents.executeJavaScript(`window.__torc.report()`, true)) as {
+      paneCount: number
+    }
+  check(
+    'the new window opens with one pane of its own',
+    (await secondReport()).paneCount === 1,
+    String((await secondReport()).paneCount),
+  )
+  check(
+    'and the first window is untouched by it',
+    (await paneCount()) === paneCountHere,
+    `${await paneCount()} vs ${paneCountHere}`,
+  )
+  check(
+    'main knows about both windows worth of panes',
+    deps.liveSessions() === sessionsBefore + 1,
+    `${deps.liveSessions()} vs ${sessionsBefore + 1}`,
+  )
+  await shot('scenario-second-window')
+
+  // The layout has to know about it, or the second workspace is gone on relaunch.
+  check(
+    'the saved layout gains a workspace',
+    deps.savedWindows() === 2,
+    `${deps.savedWindows()} workspaces saved`,
+  )
+
+  second.close()
+  await delay(2000)
+  check('closing a window closes it', deps.windows().length === 1, String(deps.windows().length))
+  check(
+    'and takes its panes with it',
+    deps.liveSessions() === sessionsBefore,
+    `${deps.liveSessions()} still running, expected ${sessionsBefore}`,
+  )
+  check(
+    'while leaving the other window alone',
+    (await paneCount()) === paneCountHere,
+    `${await paneCount()} vs ${paneCountHere}`,
+  )
+  // The counterpart to the check above, and the one that can quietly eat a
+  // layout: a window the user closed must not come back, but quitting closes
+  // every window and must not be read the same way. Only the first half is
+  // assertable from in here — the second is why the registry asks whether the
+  // app is on its way out before it writes.
+  check(
+    'and forgets that workspace, so it does not come back',
+    deps.savedWindows() === 1,
+    `${deps.savedWindows()} workspaces saved`,
+  )
 
   console.log(`[scenario] ${passed} passed, ${failed} failed`)
   return { passed, failed }

@@ -30,17 +30,57 @@ describe('persist', () => {
   it('round-trips a layout', () => {
     saveState({
       theme: 'matrix',
-      activeIndex: 1,
-      panes: [
-        { kind: 'shell', cwd: '/tmp', title: 'tmp' },
-        { kind: 'shell', cwd: '/var', title: 'var' },
+      windows: [
+        {
+          activeIndex: 1,
+          panes: [
+            { kind: 'shell', cwd: '/tmp', title: 'tmp' },
+            { kind: 'shell', cwd: '/var', title: 'var' },
+          ],
+        },
       ],
     })
 
     const loaded = loadState()
     expect(loaded?.theme).toBe('matrix')
-    expect(loaded?.activeIndex).toBe(1)
-    expect(loaded?.panes).toHaveLength(2)
+    expect(loaded?.windows[0].activeIndex).toBe(1)
+    expect(loaded?.windows[0].panes).toHaveLength(2)
+  })
+
+  it('keeps one window\'s panes out of another\'s', () => {
+    // The whole point of the v2 shape: two windows, and neither one restores
+    // the other's panes.
+    saveState({
+      windows: [
+        { panes: [{ kind: 'shell', cwd: '/tmp', title: 'tmp' }] },
+        { panes: [{ kind: 'shell', cwd: '/var', title: 'var' }], activeIndex: 0 },
+      ],
+    })
+
+    const loaded = loadState()
+    expect(loaded?.windows.map((w) => w.panes.map((p) => p.title))).toEqual([['tmp'], ['var']])
+  })
+
+  it('reads a single-window file from an older build as one window', () => {
+    // Discarding it would silently lose the layout of anyone upgrading.
+    writeFileSync(
+      join(dir, 'state.json'),
+      JSON.stringify({
+        version: 1,
+        theme: 'matrix',
+        activeIndex: 1,
+        panes: [
+          { kind: 'shell', cwd: '/tmp', title: 'tmp' },
+          { kind: 'shell', cwd: '/var', title: 'var' },
+        ],
+      }),
+    )
+
+    const loaded = loadState()
+    expect(loaded?.theme).toBe('matrix')
+    expect(loaded?.windows).toHaveLength(1)
+    expect(loaded?.windows[0].activeIndex).toBe(1)
+    expect(loaded?.windows[0].panes.map((p) => p.title)).toEqual(['tmp', 'var'])
   })
 
   it('returns undefined when nothing has been saved', () => {
@@ -53,7 +93,7 @@ describe('persist', () => {
   })
 
   it('ignores a state file from a future version', () => {
-    writeFileSync(join(dir, 'state.json'), JSON.stringify({ version: 99, panes: [] }))
+    writeFileSync(join(dir, 'state.json'), JSON.stringify({ version: 99, windows: [] }))
     expect(loadState()).toBeUndefined()
   })
 
@@ -65,23 +105,27 @@ describe('persist', () => {
     giveTranscript(cwd, 'kept-session')
 
     saveState({
-      panes: [
-        { kind: 'claude', cwd, title: 'kept', claudeSessionId: 'kept-session' },
-        { kind: 'claude', cwd, title: 'gone', claudeSessionId: 'no-such-session' },
-        { kind: 'shell', cwd, title: 'shell' },
+      windows: [
+        {
+          panes: [
+            { kind: 'claude', cwd, title: 'kept', claudeSessionId: 'kept-session' },
+            { kind: 'claude', cwd, title: 'gone', claudeSessionId: 'no-such-session' },
+            { kind: 'shell', cwd, title: 'shell' },
+          ],
+        },
       ],
     })
 
-    const loaded = loadState()
-    expect(loaded?.panes.map((p) => p.title)).toEqual(['kept', 'gone', 'shell'])
-    expect(loaded?.panes.map((p) => p.resumable)).toEqual([true, false, false])
+    const panes = loadState()?.windows[0].panes
+    expect(panes?.map((p) => p.title)).toEqual(['kept', 'gone', 'shell'])
+    expect(panes?.map((p) => p.resumable)).toEqual([true, false, false])
     // Kinds must survive: restoring an agent as a shell loses the agent.
-    expect(loaded?.panes.map((p) => p.kind)).toEqual(['claude', 'claude', 'shell'])
+    expect(panes?.map((p) => p.kind)).toEqual(['claude', 'claude', 'shell'])
     rmSync(cwd, { recursive: true, force: true })
   })
 
   it('does not leave a temp file behind', () => {
-    saveState({ panes: [{ kind: 'shell', cwd: '/tmp', title: 'tmp' }] })
+    saveState({ windows: [{ panes: [{ kind: 'shell', cwd: '/tmp', title: 'tmp' }] }] })
     expect(existsSync(join(dir, 'state.json.tmp'))).toBe(false)
   })
 })

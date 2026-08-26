@@ -16,6 +16,13 @@ const pty = require('node-pty') as typeof import('node-pty')
 interface Session {
   snapshot: SessionSnapshot
   proc: IPty
+  /**
+   * The `webContents.id` of the window this pane lives in. Recorded before the
+   * pty spawns, because output routed at a pane with no owner would be dropped —
+   * and set here rather than on the snapshot because it is main's business, not
+   * something the renderer needs mirrored back to it.
+   */
+  windowId?: number
   /** Coalescing buffer — see flush(). */
   pending: string[]
   flushTimer?: NodeJS.Timeout
@@ -79,7 +86,7 @@ export class SessionManager {
     this.launchConfig = config
   }
 
-  async create(spec: SessionSpec): Promise<SessionSnapshot> {
+  async create(spec: SessionSpec, windowId?: number): Promise<SessionSnapshot> {
     const env = await resolveUserEnv()
     const shell = env.SHELL || '/bin/zsh'
     const plan = planLaunch(spec, shell)
@@ -113,6 +120,7 @@ export class SessionManager {
     const session: Session = {
       snapshot,
       proc,
+      windowId,
       pending: [],
       cols: 80,
       rows: 24,
@@ -352,6 +360,12 @@ export class SessionManager {
   kill(id: string): void {
     const session = this.sessions.get(id)
     if (!session) return
+    // Killed once. The pane stays in the map until its pty's exit arrives, so a
+    // second kill in that window reaches a dead process — and node-pty raises
+    // that from native code, where the catch below can't reach it and the whole
+    // process aborts. Two routes converge here on quit: disposeAll, and every
+    // window closing and taking its panes with it.
+    if (session.closing) return
     session.closing = true
     try {
       session.proc.kill()
@@ -360,8 +374,23 @@ export class SessionManager {
     }
   }
 
-  list(): SessionSnapshot[] {
-    return [...this.sessions.values()].map((s) => ({ ...s.snapshot }))
+  /** Every pane, or only the ones in one window. */
+  list(windowId?: number): SessionSnapshot[] {
+    return [...this.sessions.values()]
+      .filter((s) => windowId === undefined || s.windowId === windowId)
+      .map((s) => ({ ...s.snapshot }))
+  }
+
+  /** Which window a pane's output and updates belong to. */
+  windowIdOf(id: string): number | undefined {
+    return this.sessions.get(id)?.windowId
+  }
+
+  /** The panes a closing window takes with it. */
+  idsIn(windowId: number): string[] {
+    return [...this.sessions.values()]
+      .filter((s) => s.windowId === windowId)
+      .map((s) => s.snapshot.id)
   }
 
   get(id: string): SessionSnapshot | undefined {

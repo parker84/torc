@@ -1,7 +1,7 @@
 # Torc — current state and plan of attack
 
 *The one place that says where this project is and what's next. Every item links to a ticket.
-Last updated 2026-07-29.*
+Last updated 2026-08-26.*
 
 **If you are picking this repo up, read this file first.** `docs/context-brief.md` explains *why*
 Torc exists and what the design is; this file is the only one that tracks *state*.
@@ -21,7 +21,7 @@ A plan document that goes stale is worse than none, because it gets believed. Tw
 Verified 2026-08-02 against the tree, not from intent:
 
 - `npm run typecheck` — clean.
-- `npm test` — 85 tests across 11 files, all passing, ~1.5s. Colocated `.test.ts` beside their source.
+- `npm test` — 99 tests across 12 files, all passing, ~1.5s. Colocated `.test.ts` beside their source.
 - **M0, M1 and M2 have all shipped.** Terminals, splits, themes, ⌘K with all prefix modes, fleet
   monitoring, notifications, session restore, and the packaged build. Seven PRs merged.
 - **M3 (cross-agent context sharing) is unbuilt** and parked pending design — #1.
@@ -105,6 +105,22 @@ when agents are opening the PRs.
       Restart and Close; double-click a row, or ⌘K → "Rename pane", for the same editor. The name
       lives on the snapshot in main (`renamed`), so it survives a cd, a restart, an agent quitting
       into a shell, and restore. Emptying it hands the pane back to Torc's own guess.
+- [x] **#42 — Several windows at once, with ⌘N to open one.** Shipped 2026-08-26. ⌘N opens a window
+      with a terminal, ⇧⌘N one with an agent; both are in ⌘K. A window is a workspace — it owns its
+      panes, shows nobody else's, and closing it closes them — and `state.json` grows a `windows`
+      array so every workspace comes back, with a v1 file read as one window rather than discarded.
+      New in main: `windows.ts` holds the registry and per-window layout, `SessionManager` records
+      which window each pane lives in so output and updates route back to it, and `updateAttention`
+      takes one group per window, because a pane in a window you can't see still has to reach you
+      while another Torc window has focus. Eight assertions in `scenarios.ts` cover the boundary,
+      including the two that can quietly eat a layout: closing a window drops its saved workspace,
+      and quitting — which closes every window — must not be read the same way. `TORC_USER_DATA`
+      landed alongside, because that second half is only testable beside a running app: Electron
+      takes userData from the passwd database rather than `$HOME`, so overriding HOME alone leaves
+      two instances on one singleton lock and the second quits silently with code 0. One
+      thing bit: on quit, `disposeAll` and every window taking its panes with it both reach the same
+      pane, and node-pty raises the second kill from native code where no `catch` can reach it — the
+      whole process aborted with SIGABRT. `kill` is now idempotent.
 - [ ] **#17 — Scrolling back through a pane feels slow.** Speed and ⌥ fast-scroll landed 2026-07-29;
       sensitivity went 5 → 8 on 2026-08-02 after measuring, which closes the *dead zone* half. The
       row is 18px, not the ~16px the original reasoning assumed, and a trackpad's smallest delta is
@@ -163,6 +179,24 @@ work is open, and both want an explicit decision before any code.
 ---
 
 ## Decisions log
+
+**2026-08-26 — A window is a workspace: it owns its panes and shows nobody else's.** Not one fleet
+mirrored into every window. *Why:* a second xterm attached to a live pty opens blank. A pane's
+scrollback is built from the data stream as it arrives and main keeps no copy to replay, so the shared
+version shows one correct terminal and one empty one — partitioning is the only shape where both read
+correctly. It also gives ⌘W, restore and notifications an unambiguous owner for every pane.
+*Rejected:* a shared rail listing the whole fleet with only the local panes rendering — half the rail
+would be rows you can't open, which reads as a bug; and buffering every pane's output in main so a
+second window could replay it, which puts megabytes per pane on the hot path the coalescing invariant
+exists to protect. *Consequence:* `SessionManager` records a `windowId` per pane, set before the pty
+spawns because output aimed at an unowned pane is dropped; `state.json` is a list of windows; and
+closing a window kills its panes, which is the *second* route to a kill on quit — hence `kill` being
+idempotent. *Still one instance:* #38's lock is untouched. Two processes corrupt each other's state
+file; two windows in one process do not. *Also settled:* ⌘N/⇧⌘N mirror ⌘T/⇧⌘T rather than ⌘N being
+the only window key, because "terminal or agent?" is the same question one level up, and appearance
+is relayed between windows over IPC rather than left to localStorage — the windows share a theme on
+disk but not in memory, so without the relay the others stay on the old theme until reloaded. (#42,
+#38)
 
 **2026-08-07 — A name the user typed outranks the ai-title, and Torc never edits it.** The rail,
 palette and Mission Control read `paneLabel()`: renamed title → Claude's ai-title → the folder name.

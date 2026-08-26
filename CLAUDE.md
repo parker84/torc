@@ -43,7 +43,7 @@ The Electron harnesses drive the renderer through `window.__torc` and capture wi
 signed-in `claude` on the machine:
 
 ```bash
-npm run scenarios                       # 32 assertions over real user flows; exits 1 on red
+npm run scenarios                       # 41 assertions over real user flows; exits 1 on red
 TORC_QA=/tmp/shots npm run dev          # screenshots itself
 TORC_DEMO=/tmp/demo npm run dev         # a real fleet across repos, read-only
 TORC_DEBUG_HOOKS=1 npm run dev          # log every hook event received
@@ -54,6 +54,21 @@ way the exit code survives to the shell — `electron-vite dev` swallows it. Ove
 directory with `TORC_SCENARIOS=/somewhere`; it defaults to `/tmp/torc-scenarios`. It clears the fleet
 before it starts, so a saved layout can't be counted as part of the run — which also means **a
 scenario run overwrites your saved layout**, since the harnesses share `~/.torc/` with the real app.
+
+To drive a dev build beside the real app — the only way to test window behaviour without quitting a
+live fleet — give it a home and a userData directory of its own. Electron takes userData from the
+passwd database rather than `$HOME`, so it needs both or the singleton lock still collides and the
+second instance quits silently with code 0:
+
+```bash
+H=/tmp/torc-test; mkdir -p $H/userdata
+for f in .zshrc .zprofile .local .claude .claude.json; do ln -sf ~/$f $H/$f; done
+HOME=$H TORC_USER_DATA=$H/userdata npm run dev
+```
+
+The symlinks are what give the panes the real login-shell PATH, and so a `claude` at `~/.local/bin`.
+The two instances then share nothing: own lock, own `~/.torc`, own shim, own hook bridge, own saved
+layout — which is also why this is safer than the harnesses' lock bypass.
 
 `TORC_QA_MODE` selects a QA scenario — `restore`, `split`, `palette`, `shim`, `keys`. The QA and demo
 harnesses still only print, so read their logs.
@@ -70,6 +85,13 @@ Break these and things go wrong in ways that are hard to trace:
   find yourself parsing terminal output for state, the answer is somewhere in
   `docs/architecture.md`.
 - **PTY output stays off the hot path.** Chunks are coalesced before crossing IPC.
+- **A window is a workspace, and a pane belongs to exactly one of them.** Session data, exits and
+  updates route to the owning window (`SessionManager.windowIdOf`), never to all of them — a second
+  xterm on a live pty opens blank, because scrollback is built from the stream as it arrives and main
+  keeps no copy. Many windows, still one *instance*: the single-instance lock stays.
+- **Killing a pane is idempotent.** A pane stays in the map until its pty's exit arrives, and both
+  `disposeAll` and a closing window reach for it on the way out. node-pty raises a second kill from
+  native code, where no `catch` can reach it, and the process aborts.
 - **Torc never edits `~/.claude/settings.json`.** Per-session hooks go in via `claude --settings`
   pointing at a generated file under `~/.torc/`. Everything in `~/.torc/` is regenerated on launch and
   safe to delete.
@@ -96,6 +118,7 @@ Break these and things go wrong in ways that are hard to trace:
 
 ```
 src/main/        Electron main — owns all state
+  windows.ts     the window registry — a window is a workspace that owns its panes
   pty/           SessionManager (spawns claude with an assigned --session-id), launchArgs
   fleet/         monitor, bridge (hook HTTP), transcript tailer, agentsPoller, status reducer
   store/         session persistence
