@@ -99,8 +99,14 @@ export const IPC = {
   appHome: 'app:home',
   appDefaultCwd: 'app:default-cwd',
   appPickDir: 'app:pick-dir',
-  appLoadState: 'app:load-state',
   appSaveState: 'app:save-state',
+  /** Everything a window needs to know about itself as it boots. */
+  windowInit: 'window:init',
+  windowNew: 'window:new',
+  /** renderer → main: this window changed the theme. */
+  themeShare: 'theme:share',
+  /** main → renderer: another window changed it; catch up. */
+  themeApply: 'theme:apply',
   appOpenIn: 'app:open-in',
   /** Right-click in a pane; main owns Menu, so it builds and pops the menu. */
   paneContextMenu: 'pane:context-menu',
@@ -126,10 +132,24 @@ export interface SavedPane {
   resumable?: boolean
 }
 
+/** One window's layout. A window owns its panes and nothing else's. */
 export interface SavedState {
   theme?: string
   panes: SavedPane[]
   activeIndex?: number
+}
+
+/**
+ * What a window is told about itself as it boots. Each window is its own
+ * workspace, so restore hands it only its own slice of the saved layout rather
+ * than letting every window read the whole file and open the same panes twice.
+ */
+export interface WindowInit {
+  theme?: string
+  panes: SavedPane[]
+  activeIndex?: number
+  /** Open one pane of this kind once the window is up — this is what ⌘N does. */
+  seed?: AgentKind
 }
 
 export interface TorcApi {
@@ -153,8 +173,17 @@ export interface TorcApi {
   home(): Promise<string>
   /** Where to open an agent when the user hasn't said. */
   defaultCwd(): Promise<string>
-  loadState(): Promise<SavedState | undefined>
+  /** This window's own boot payload: its saved panes, or what ⌘N asked for. */
+  windowInit(): Promise<WindowInit>
   saveState(state: SavedState): void
+  /** Opens another window, optionally with one pane already in it. */
+  newWindow(seed?: AgentKind): void
+  /**
+   * Appearance is one app-wide choice, so a theme picked in one window has to
+   * reach the others. Sent on every change; main relays it to everyone else.
+   */
+  shareTheme(theme: string): void
+  onThemeApply(cb: (theme: string) => void): () => void
   openIn(path: string, target: 'editor' | 'finder'): void
   /**
    * Opens the pane's right-click menu. The selection is passed in because it

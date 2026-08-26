@@ -18,56 +18,74 @@ function summarize(snapshot: SessionSnapshot): string {
   return 'finished and is waiting for a look'
 }
 
+/**
+ * One window and the panes that live in it. Attention is worked out per window
+ * rather than per app: a pane in a window you can't see still needs to reach
+ * you, even while another Torc window has focus.
+ */
+export interface AttentionGroup {
+  window: BrowserWindow
+  snapshots: SessionSnapshot[]
+}
+
 /** Returns how many notifications were actually shown, so QA can assert on it. */
 export function updateAttention(
-  snapshots: SessionSnapshot[],
-  window: BrowserWindow | null,
-  onActivate: (paneId: string) => void,
+  groups: AttentionGroup[],
+  onActivate: (window: BrowserWindow, paneId: string) => void,
 ): number {
   let shown = 0
-  const live = new Set(snapshots.map((s) => s.id))
+  // Pruned against every window's panes at once. Pruning per group would have
+  // each window forgetting the others' panes and re-notifying for them.
+  const live = new Set(groups.flatMap((group) => group.snapshots.map((s) => s.id)))
   for (const id of attentive) {
     if (!live.has(id)) attentive.delete(id)
   }
 
-  const focused = window?.isFocused() ?? false
+  let waitingOverall = 0
 
-  for (const snapshot of snapshots) {
-    if (!snapshot.needsAttention) {
-      attentive.delete(snapshot.id)
-      continue
+  for (const { window, snapshots } of groups) {
+    const focused = window.isFocused()
+
+    for (const snapshot of snapshots) {
+      if (!snapshot.needsAttention) {
+        attentive.delete(snapshot.id)
+        continue
+      }
+      if (attentive.has(snapshot.id)) continue
+      attentive.add(snapshot.id)
+
+      // Don't interrupt for the pane the user is already watching.
+      if (focused) continue
+      if (!Notification.isSupported()) continue
+
+      const notification = new Notification({
+        title: `${snapshot.title} ${summarize(snapshot)}`,
+        body: snapshot.aiTitle || snapshot.cwd,
+        silent: false,
+      })
+      notification.on('click', () => {
+        if (window.isDestroyed()) return
+        window.show()
+        window.focus()
+        onActivate(window, snapshot.id)
+      })
+      notification.show()
+      shown++
     }
-    if (attentive.has(snapshot.id)) continue
-    attentive.add(snapshot.id)
 
-    // Don't interrupt for the pane the user is already watching.
-    if (focused) continue
-    if (!Notification.isSupported()) continue
-
-    const notification = new Notification({
-      title: `${snapshot.title} ${summarize(snapshot)}`,
-      body: snapshot.aiTitle || snapshot.cwd,
-      silent: false,
-    })
-    notification.on('click', () => {
-      window?.show()
-      window?.focus()
-      onActivate(snapshot.id)
-    })
-    notification.show()
-    shown++
+    // Each window says what it is holding up; the dock badge totals them.
+    const waiting = snapshots.filter((s) => s.needsAttention).length
+    waitingOverall += waiting
+    window.setTitle(waiting > 0 ? `${BRAND.name} — ${waiting} waiting` : BRAND.name)
   }
 
-  // Badge the dock with how many agents are waiting.
-  const waiting = snapshots.filter((s) => s.needsAttention).length
   if (process.platform === 'darwin') {
-    app.dock?.setBadge(waiting > 0 ? String(waiting) : '')
+    app.dock?.setBadge(waitingOverall > 0 ? String(waitingOverall) : '')
   }
-  window?.setTitle(waiting > 0 ? `${BRAND.name} — ${waiting} waiting` : BRAND.name)
   return shown
 }
 
-/** Called when the window regains focus: the user is looking, so stop badging. */
+/** Called when a window regains focus: the user is looking, so stop badging. */
 export function clearBadge(): void {
   if (process.platform === 'darwin') app.dock?.setBadge('')
 }

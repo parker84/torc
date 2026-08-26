@@ -25,6 +25,8 @@ class FakePty {
   readonly pid = FakePty.spawned.length + 1000
   written: string[] = []
   killed = false
+  /** Counted, not just flagged: killing a dead pty is what aborts main. */
+  kills = 0
   resizedTo?: [number, number]
   private exitHandlers: Array<(e: { exitCode: number; signal?: number }) => void> = []
   /** Set once the pane stops listening, so a dead pty can refuse writes. */
@@ -52,6 +54,7 @@ class FakePty {
   }
   kill() {
     this.killed = true
+    this.kills++
   }
   exit(exitCode = 0) {
     for (const handler of this.exitHandlers) handler({ exitCode })
@@ -414,5 +417,60 @@ describe('SessionManager.rename', () => {
 
   it('ignores a rename for a pane that no longer exists', () => {
     expect(() => manager.rename('never-existed', 'x')).not.toThrow()
+  })
+})
+
+describe('SessionManager and the window a pane lives in', () => {
+  let rec: ReturnType<typeof recorder>
+  let manager: TestManager
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    FakePty.spawned = []
+    rec = recorder()
+    manager = new TestManager(rec.events)
+  })
+
+  afterEach(() => {
+    manager.disposeAll()
+    vi.useRealTimers()
+  })
+
+  it('tells each window about its own panes and no others', async () => {
+    const here = await manager.create({ kind: 'shell', cwd: '/tmp' }, 1)
+    const there = await manager.create({ kind: 'shell', cwd: '/var' }, 2)
+
+    expect(manager.list(1).map((p) => p.id)).toEqual([here.id])
+    expect(manager.list(2).map((p) => p.id)).toEqual([there.id])
+    // No window given is the whole fleet, which is what the monitor wants.
+    expect(manager.list()).toHaveLength(2)
+  })
+
+  it('points a pane at the window that opened it', async () => {
+    const opened = await manager.create({ kind: 'shell', cwd: '/tmp' }, 7)
+    expect(manager.windowIdOf(opened.id)).toBe(7)
+    expect(manager.windowIdOf('no-such-pane')).toBeUndefined()
+  })
+
+  it('names the panes a closing window takes with it', async () => {
+    const doomed = await manager.create({ kind: 'shell', cwd: '/tmp' }, 1)
+    await manager.create({ kind: 'shell', cwd: '/var' }, 2)
+
+    expect(manager.idsIn(1)).toEqual([doomed.id])
+    expect(manager.idsIn(99)).toEqual([])
+  })
+
+  it('kills a pane once however many routes ask it to', async () => {
+    // Quitting closes every window, so disposeAll and the window's own teardown
+    // both reach for the same pane. node-pty raises the second kill from native
+    // code, where nothing here can catch it, and the process aborts.
+    const opened = await manager.create({ kind: 'shell', cwd: '/tmp' }, 1)
+    const pty = live()
+
+    manager.kill(opened.id)
+    manager.kill(opened.id)
+    manager.disposeAll()
+
+    expect(pty.kills).toBe(1)
   })
 })

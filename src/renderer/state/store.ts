@@ -61,6 +61,8 @@ interface TorcState {
   applyUpdate(snapshot: SessionSnapshot): void
   markExited(id: string, exitCode: number): void
   setTheme(theme: ThemeId): void
+  /** Another window changed the theme. Applied without relaying it back. */
+  applyTheme(theme: string): void
   cycleTheme(): void
   setView(view: View): void
   /** Rebuilds last session's panes. Safe to call once at startup. */
@@ -199,6 +201,17 @@ export const useStore = create<TorcState>((set, get) => ({
     localStorage.setItem(THEME_KEY, theme)
     document.documentElement.dataset.theme = theme
     set({ theme })
+    // Appearance is one choice for the app, not per window. Main relays this to
+    // the other windows; applyTheme is the receiving end and doesn't echo.
+    window.torc.shareTheme(theme)
+  },
+
+  applyTheme(theme) {
+    const wanted = migrateThemeId(theme)
+    if (!wanted || wanted === get().theme) return
+    localStorage.setItem(THEME_KEY, wanted)
+    document.documentElement.dataset.theme = wanted
+    set({ theme: wanted })
   },
 
   cycleTheme() {
@@ -216,15 +229,17 @@ export const useStore = create<TorcState>((set, get) => ({
     if (restoreStarted) return
     restoreStarted = true
 
-    const saved = await window.torc.loadState()
-    if (!saved || saved.panes.length === 0) return
+    // This window's own slice of the saved layout, not the whole file — main
+    // decides which workspace each window gets, or every window would open the
+    // same panes.
+    const init = await window.torc.windowInit()
 
-    const savedTheme = migrateThemeId(saved.theme)
+    const savedTheme = migrateThemeId(init.theme)
     if (savedTheme) get().setTheme(savedTheme)
 
     // Sequential, not parallel: five Claude Code boots at once thrash the CPU
     // and the first pane should be usable immediately.
-    for (const pane of saved.panes) {
+    for (const pane of init.panes) {
       await get().newSession({
         kind: pane.kind,
         cwd: pane.cwd,
@@ -237,8 +252,12 @@ export const useStore = create<TorcState>((set, get) => ({
     }
 
     const panes = get().panes
-    const target = panes[saved.activeIndex ?? 0] ?? panes[0]
+    const target = panes[init.activeIndex ?? 0] ?? panes[0]
     if (target) set({ activeId: target.id })
+
+    // A window opened by ⌘N has nothing to restore and one thing to open. Last,
+    // so it lands on top of a restored layout rather than in the middle of one.
+    if (init.seed) await get().newSession({ kind: init.seed })
   },
 
   focusNextAttention() {

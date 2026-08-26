@@ -65,6 +65,8 @@ export function App() {
       ),
       // Clicking a notification jumps straight to the agent that sent it.
       window.torc.onFocusPane((paneId) => useStore.getState().setActive(paneId)),
+      // Another window cycled the theme; this one is not a separate app.
+      window.torc.onThemeApply((theme) => useStore.getState().applyTheme(theme)),
     ]
     return () => offs.forEach((off) => off())
   }, [])
