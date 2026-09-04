@@ -47,6 +47,16 @@ describe('deriveStatus', () => {
     })
   })
 
+  it('treats a turn in flight as working with no tool open', () => {
+    // A long think sits between two tool calls: nothing is running, the
+    // transcript gets nothing until the message lands, and the pane still has
+    // to read as working.
+    expect(deriveStatus({ ...alive, turnActive: true, pollStatus: 'idle' })).toEqual({
+      status: 'working',
+      needsAttention: false,
+    })
+  })
+
   it('shows a freshly spawned agent as launching until something reports in', () => {
     expect(deriveStatus({ ptyAlive: true, registered: false })).toEqual({
       status: 'launching',

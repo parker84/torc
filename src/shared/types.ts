@@ -72,6 +72,13 @@ export interface SessionSnapshot {
   renamed?: boolean
   status: AgentStatus
   startedAt: number
+  /**
+   * When the pane entered its current status. What a fleet view wants on a card
+   * is how long *this* has been going — a turn that's run 13 minutes — not how
+   * long ago the pane opened, which for a pane you leave open all day says
+   * nothing.
+   */
+  statusSince: number
   exitCode?: number
   /** True while the agent is blocked by the user (permission prompt, question). */
   needsAttention: boolean

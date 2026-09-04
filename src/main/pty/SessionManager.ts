@@ -110,6 +110,7 @@ export class SessionManager {
       renamed: spec.renamed || undefined,
       status: 'launching',
       startedAt: Date.now(),
+      statusSince: Date.now(),
       needsAttention: false,
       recentTools: [],
       model: spec.model,
@@ -137,6 +138,7 @@ export class SessionManager {
     // The real status arrives from FleetMonitor within a second or two; until
     // then the pane reads as launching.
     snapshot.status = spec.kind === 'shell' ? 'idle' : 'launching'
+    snapshot.statusSince = Date.now()
     this.events.onCreated?.({ ...snapshot })
     return { ...snapshot }
   }
@@ -230,6 +232,7 @@ export class SessionManager {
   private teardown(session: Session, exitCode: number): void {
     const id = session.snapshot.id
     session.snapshot.status = exitCode === 0 ? 'exited' : 'error'
+    session.snapshot.statusSince = Date.now()
     session.snapshot.exitCode = exitCode
     session.snapshot.needsAttention = exitCode !== 0
     session.snapshot.currentTool = undefined
@@ -276,6 +279,7 @@ export class SessionManager {
     session.snapshot.exitCode = undefined
     session.snapshot.needsAttention = false
     session.snapshot.startedAt = Date.now()
+    session.snapshot.statusSince = Date.now()
     // Everything below belonged to the agent that just quit. Leaving any of it
     // on would have the rail describing a plain shell as a live conversation —
     // and re-watching the finished transcript would replay its whole history.
@@ -317,6 +321,12 @@ export class SessionManager {
   patch(id: string, partial: Partial<SessionSnapshot>): void {
     const session = this.sessions.get(id)
     if (!session) return
+    // A pane's clock measures the state it's in, so it restarts exactly when the
+    // state does. Every status change outside a pane's own lifecycle arrives
+    // through here, which makes this the one place it can't be forgotten.
+    if (partial.status !== undefined && partial.status !== session.snapshot.status) {
+      session.snapshot.statusSince = Date.now()
+    }
     Object.assign(session.snapshot, partial)
     this.events.onUpdate({ ...session.snapshot })
   }
