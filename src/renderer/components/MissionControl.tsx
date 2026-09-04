@@ -3,6 +3,11 @@ import type { SessionSnapshot } from '@shared/types'
 import { useStore } from '../state/store'
 import { StatusDot, statusLabel } from './StatusDot'
 
+/*
+ * How long the pane has been in the state it's in — the number beside a working
+ * agent is its current turn, which is what the agent's own spinner counts. Pane
+ * age answers a question nobody asks of a terminal left open all afternoon.
+ */
 function elapsed(since: number, now: number): string {
   const seconds = Math.max(0, Math.round((now - since) / 1000))
   if (seconds < 60) return `${seconds}s`
@@ -43,7 +48,7 @@ function AgentCard({ pane, now }: { pane: SessionSnapshot; now: number }) {
         <StatusDot status={pane.status} needsAttention={pane.needsAttention} />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">{pane.title}</span>
         <span className="shrink-0 font-mono text-[10px] text-muted">
-          {elapsed(pane.startedAt, now)}
+          {elapsed(pane.statusSince, now)}
         </span>
       </div>
 

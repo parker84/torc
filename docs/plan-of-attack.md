@@ -1,7 +1,7 @@
 # Torc — current state and plan of attack
 
 *The one place that says where this project is and what's next. Every item links to a ticket.
-Last updated 2026-08-26.*
+Last updated 2026-09-04.*
 
 **If you are picking this repo up, read this file first.** `docs/context-brief.md` explains *why*
 Torc exists and what the design is; this file is the only one that tracks *state*.
@@ -179,6 +179,34 @@ work is open, and both want an explicit decision before any code.
 ---
 
 ## Decisions log
+
+**2026-09-04 — A pane's claim on a claude session is a lease, not a marriage.** Two polls with the
+session absent from `claude agents --json` and the pane lets it go, back to the ancestry matching that
+found it. *Why:* the claim was permanent, and a shell pane is a place people quit one agent and start
+another. Once the claimed session left the registry the pane kept reporting its last known state —
+"idle", beside an agent that was visibly working — and the transcript, tokens and ai-title stayed
+frozen on the finished conversation. Two of three panes were in that state when it was found.
+*Two polls, not one:* the registry is rewritten in place, so a poll landing mid-write reads a live
+session as gone. *Rejected:* keying panes by pid instead of session id — the id is what the hooks and
+the transcript path are in terms of, and one pid's session id changes under it anyway (a resume, a
+fork); and trusting the pty's own exit, which never comes, because the pane's process is the shell,
+not the agent. *Also settled:* discovery is no longer shell-only. A `claude` pane whose assigned id
+stops existing is the same stale claim, and the pty's child is unambiguously the right session to
+adopt.
+
+**2026-09-04 — Hooks say a turn started; the registry is what ends it.** `UserPromptSubmit` and
+`PreToolUse` set a pane working, `Stop` clears it, and a poll reporting `idle` clears it too. *Why:*
+between two tool calls there is no open tool and the transcript gets nothing until the message lands,
+so a long think had no busy signal at all and the pane read as idle for minutes. The hook edge also
+saves the up-to-2.5s wait for the registry to agree that a prompt went in. *Why the poll gets the
+last word:* a dropped `Stop` would otherwise pin a finished pane at "working" for the rest of its
+life, which is the worse failure — reconciliation is the poller's stated job.
+
+**2026-09-04 — A pane's clock measures the state it's in.** `statusSince`, not `startedAt`, is what
+Mission Control counts. *Why:* the card said 48m beside an agent whose own spinner said 13m. Pane age
+is not a number anyone asks a terminal they left open all afternoon; "this turn has run 13 minutes"
+and "done and unread for 6" both are. Set in `SessionManager.patch`, which every status change
+outside a pane's own lifecycle goes through.
 
 **2026-08-26 — A window is a workspace: it owns its panes and shows nobody else's.** Not one fleet
 mirrored into every window. *Why:* a second xterm attached to a live pty opens blank. A pane's

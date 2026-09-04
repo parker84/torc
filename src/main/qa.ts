@@ -447,6 +447,7 @@ async function checkNotification(win: BrowserWindow): Promise<void> {
       title: 'notification probe',
       status: 'needs-input' as const,
       startedAt: Date.now(),
+      statusSince: Date.now(),
       needsAttention: true,
       recentTools: [],
     },

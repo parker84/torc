@@ -17,6 +17,12 @@ export interface StatusInputs {
   turnCompleteUnread?: boolean
   /** A tool call is open in the transcript. */
   toolRunning?: boolean
+  /**
+   * A turn is in flight: a prompt went in and no Stop has come back. The only
+   * signal that survives a long think — between two tool calls there is no open
+   * tool, and the transcript gets nothing until the message lands.
+   */
+  turnActive?: boolean
   /** Session has been seen by any source at all. */
   registered?: boolean
 }
@@ -30,7 +36,7 @@ export interface DerivedStatus {
  * Source precedence, most to least authoritative:
  *   1. the PTY exited — nothing else matters
  *   2. a Notification hook — the agent is explicitly waiting on the user
- *   3. busy signals (poll or an open tool call) — it's working
+ *   3. busy signals (poll, an open tool call, or a turn in flight) — it's working
  *   4. a completed turn nobody has read — done, and wants a look
  *   5. otherwise idle
  */
@@ -42,7 +48,7 @@ export function deriveStatus(inputs: StatusInputs): DerivedStatus {
 
   if (inputs.blocked) return { status: 'needs-input', needsAttention: true }
 
-  if (inputs.pollStatus === 'busy' || inputs.toolRunning) {
+  if (inputs.pollStatus === 'busy' || inputs.toolRunning || inputs.turnActive) {
     return { status: 'working', needsAttention: false }
   }
 
