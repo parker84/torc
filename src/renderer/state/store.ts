@@ -134,7 +134,7 @@ export const useStore = create<TorcState>((set, get) => ({
       const detail = error instanceof Error ? error.message : String(error)
       console.error(`torc: could not start ${spec.kind} in ${resolved}:`, error)
       set({
-        error: `Couldn't start ${spec.kind === 'claude' ? 'an agent' : 'a terminal'} in ${resolved}. ${detail}`,
+        error: `Couldn't start ${spec.kind !== 'shell' ? 'an agent' : 'a terminal'} in ${resolved}. ${detail}`,
       })
     }
   },
@@ -254,7 +254,7 @@ export const useStore = create<TorcState>((set, get) => ({
         renamed: pane.renamed,
         // Resume only when the transcript is still there; otherwise the pane
         // comes back as a fresh agent in the right repo.
-        resumeSessionId: pane.resumable ? pane.claudeSessionId : undefined,
+        resumeSessionId: pane.resumable ? (pane.claudeSessionId ?? pane.codexThreadId) : undefined,
       })
     }
 
@@ -289,7 +289,12 @@ export const useStore = create<TorcState>((set, get) => ({
       cwd: pane.cwd,
       title: pane.title,
       renamed: pane.renamed,
-      resumeSessionId: pane.kind === 'claude' ? pane.claudeSessionId : undefined,
+      resumeSessionId:
+        pane.kind === 'claude'
+          ? pane.claudeSessionId
+          : pane.kind === 'codex'
+            ? pane.codexThreadId
+            : undefined,
     })
   },
   startRename(id) {
@@ -329,7 +334,9 @@ export const useStore = create<TorcState>((set, get) => ({
   },
 
   broadcast(text) {
-    const agents = get().panes.filter((p) => p.kind === 'claude')
+    const agents = get().panes.filter(
+      (p) => p.kind !== 'shell' || Boolean(p.claudeSessionId || p.codexThreadId),
+    )
     // Stagger: several agents starting a turn in the same tick is a thundering
     // herd on both the CPU and the API.
     agents.forEach((pane, index) => {
@@ -352,7 +359,7 @@ useStore.subscribe((state, previous) => {
   // own; without it the new name only reaches disk if a pane later opens, closes
   // or moves.
   const relevant = (s: typeof state) =>
-    `${s.theme}|${s.activeId}|${s.panes.map((p) => `${p.kind}:${p.cwd}:${p.title}:${p.claudeSessionId ?? ''}`).join(',')}`
+    `${s.theme}|${s.activeId}|${s.panes.map((p) => `${p.kind}:${p.cwd}:${p.title}:${p.claudeSessionId ?? p.codexThreadId ?? ''}`).join(',')}`
   if (relevant(state) === relevant(previous)) return
 
   if (saveTimer) clearTimeout(saveTimer)
@@ -370,6 +377,7 @@ useStore.subscribe((state, previous) => {
         title: p.title,
         renamed: p.renamed,
         claudeSessionId: p.claudeSessionId,
+        codexThreadId: p.codexThreadId,
       })),
     })
   }, 600)
@@ -401,6 +409,7 @@ if (import.meta.env.DEV || window.torc.qaEnabled) {
           tool: p.currentTool?.name,
           tokens: p.tokens ? p.tokens.input + p.tokens.output + p.tokens.cacheRead : 0,
           claudeSessionId: p.claudeSessionId,
+          codexThreadId: p.codexThreadId,
         })),
       }
     },

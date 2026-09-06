@@ -120,7 +120,7 @@ export function Rail() {
                     pane.needsAttention ? 'text-warn' : 'text-muted'
                   }`}
                 >
-                  {pane.kind === 'shell' && !pane.claudeSessionId
+                  {pane.kind === 'shell' && !pane.claudeSessionId && !pane.codexThreadId
                     ? 'shell'
                     : statusLabel(pane.status, pane.needsAttention)}{' '}
                   · {basename(pane.cwd)}

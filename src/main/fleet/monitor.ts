@@ -4,6 +4,7 @@ import { AgentsPoller, isDescendantOf, processParents, type DiscoveredAgent } fr
 import { HookBridge, type HookEvent } from './bridge'
 import { TranscriptTailer, type TranscriptState } from './transcript'
 import { deriveStatus, estimateCostUsd } from './status'
+import { CodexAppServer, type CodexEvent, type CodexThread } from './codexAppServer'
 
 /**
  * Merges the three monitoring sources into the pane snapshots owned by
@@ -25,6 +26,14 @@ interface PaneState {
   pollSeen: boolean
   /** Consecutive polls in which a confirmed claim was missing. */
   pollMisses: number
+  codexThreadId?: string
+  codexStatus?: CodexThread['status']
+  codexName?: string
+  codexModel?: string
+  codexBranch?: string
+  codexTokens?: SessionSnapshot['tokens']
+  codexCurrentTool?: SessionSnapshot['currentTool']
+  codexRecentTools: SessionSnapshot['recentTools']
 }
 
 /**
@@ -40,16 +49,27 @@ export class FleetMonitor {
   private bridge: HookBridge
   private poller: AgentsPoller
   private tailer: TranscriptTailer
+  private codex: CodexAppServer
 
   constructor(private sessions: SessionManager) {
     this.bridge = new HookBridge((event) => this.onHook(event))
     this.poller = new AgentsPoller((agents) => void this.onPoll(agents))
     this.tailer = new TranscriptTailer((paneId, state) => this.onTranscript(paneId, state))
+    this.codex = new CodexAppServer((event) => this.onCodex(event))
   }
 
   async start(): Promise<void> {
     await this.bridge.start()
+    try {
+      await this.codex.start()
+    } catch (error) {
+      console.warn('torc: Codex monitoring unavailable', error)
+    }
     this.poller.start()
+  }
+
+  get codexRemoteUrl(): string | undefined {
+    return this.codex.remoteUrl
   }
 
   get hookUrl(): string {
@@ -60,6 +80,7 @@ export class FleetMonitor {
     this.poller.stop()
     this.tailer.dispose()
     this.bridge.stop()
+    this.codex.stop()
   }
 
   /** Called by SessionManager whenever a pane opens. */
@@ -72,10 +93,148 @@ export class FleetMonitor {
       claudeSessionId: snapshot.claudeSessionId,
       pollSeen: false,
       pollMisses: 0,
+      codexThreadId: snapshot.codexThreadId,
+      codexRecentTools: [],
     })
     if (snapshot.claudeSessionId) {
       this.tailer.watch(snapshot.id, snapshot.cwd, snapshot.claudeSessionId)
     }
+  }
+
+  private onCodex(event: CodexEvent): void {
+    if (process.env.TORC_DEBUG_CODEX) console.log(`[codex] ${event.type}`)
+    if (event.type === 'thread') {
+      this.claimCodexThread(event.thread)
+      return
+    }
+    const entry = [...this.panes.entries()].find(([, pane]) => pane.codexThreadId === event.threadId)
+    if (!entry) return
+    const [paneId, pane] = entry
+    pane.registered = true
+
+    switch (event.type) {
+      case 'status':
+        pane.codexStatus = event.status
+        pane.blocked = Boolean(event.status?.activeFlags?.some((flag) => flag.startsWith('waitingOn')))
+        break
+      case 'name':
+        pane.codexName = event.name
+        break
+      case 'turn-started':
+        pane.turnActive = true
+        pane.turnCompleteUnread = false
+        pane.blocked = false
+        break
+      case 'turn-completed':
+        pane.turnActive = false
+        pane.turnCompleteUnread = true
+        if (event.failed) pane.blocked = false
+        break
+      case 'request':
+        pane.blocked = true
+        break
+      case 'request-resolved':
+        pane.blocked = false
+        break
+      case 'closed':
+        pane.codexThreadId = undefined
+        pane.codexStatus = undefined
+        pane.codexName = undefined
+        pane.codexModel = undefined
+        pane.codexBranch = undefined
+        pane.codexTokens = undefined
+        pane.codexCurrentTool = undefined
+        pane.codexRecentTools = []
+        pane.registered = false
+        pane.turnActive = false
+        pane.blocked = false
+        this.sessions.patch(paneId, {
+          codexThreadId: undefined,
+          aiTitle: undefined,
+          currentTool: undefined,
+          recentTools: [],
+          tokens: undefined,
+        })
+        break
+      case 'item-started': {
+        const tool = this.codexTool(event.item, event.startedAt)
+        if (tool) {
+          pane.codexCurrentTool = tool
+          pane.codexRecentTools = [tool, ...pane.codexRecentTools].slice(0, 12)
+        }
+        break
+      }
+      case 'item-completed':
+        if (pane.codexCurrentTool && pane.codexCurrentTool.name === this.codexToolName(event.item)) {
+          pane.codexCurrentTool.endedAt = event.completedAt
+          pane.codexCurrentTool = undefined
+        }
+        break
+      case 'tokens':
+        pane.codexTokens = {
+          input: event.usage.inputTokens ?? 0,
+          output: event.usage.outputTokens ?? 0,
+          cacheRead: event.usage.cachedInputTokens ?? 0,
+          cacheWrite: event.usage.cacheWriteInputTokens ?? 0,
+        }
+        break
+    }
+    this.recompute(paneId)
+  }
+
+  private claimCodexThread(thread: CodexThread): void {
+    if (!thread?.id || !thread.cwd) return
+    if (thread.status?.type === 'notLoaded') return
+    let entry = [...this.panes.entries()].find(([, pane]) => pane.codexThreadId === thread.id)
+    if (!entry) {
+      const candidates = this.sessions
+        .describe()
+        .filter(
+          (snapshot) =>
+            (snapshot.kind === 'codex' || snapshot.kind === 'shell') &&
+            snapshot.cwd === thread.cwd,
+        )
+        .filter((snapshot) => !this.panes.get(snapshot.id)?.codexThreadId)
+        .sort(
+          (a, b) =>
+            (this.sessions.get(a.id)?.startedAt ?? 0) -
+            (this.sessions.get(b.id)?.startedAt ?? 0),
+        )
+      const owner = candidates[0]
+      if (!owner) return
+      const pane = this.panes.get(owner.id)
+      if (!pane) return
+      pane.codexThreadId = thread.id
+      this.sessions.patch(owner.id, { codexThreadId: thread.id })
+      entry = [owner.id, pane]
+    }
+    const [paneId, pane] = entry
+    pane.registered = true
+    pane.codexStatus = thread.status
+    pane.codexName = thread.name || thread.preview
+    pane.codexModel = thread.model
+    pane.codexBranch = thread.gitInfo?.branch
+    pane.blocked = Boolean(thread.status?.activeFlags?.some((flag) => flag.startsWith('waitingOn')))
+    pane.turnActive = thread.status?.type === 'active' && !pane.blocked
+    this.recompute(paneId)
+  }
+
+  private codexToolName(item: Record<string, unknown>): string | undefined {
+    if (item.type === 'commandExecution') return 'Bash'
+    if (item.type === 'fileChange') return 'Edit'
+    if (item.type === 'mcpToolCall') return String(item.tool ?? 'MCP')
+    if (item.type === 'dynamicToolCall') return String(item.tool ?? 'Tool')
+    if (item.type === 'webSearch') return 'Web Search'
+    if (item.type === 'imageGeneration') return 'Image Generation'
+    return undefined
+  }
+
+  private codexTool(item: Record<string, unknown>, startedAt: number): SessionSnapshot['currentTool'] {
+    const name = this.codexToolName(item)
+    if (!name) return undefined
+    const raw = item.command ?? item.cwd ?? item.server
+    const summary = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').slice(0, 64) : undefined
+    return { name, summary, startedAt }
   }
 
   untrack(paneId: string): void {
@@ -244,13 +403,14 @@ export class FleetMonitor {
     if (!pane || !snapshot) return
 
     const transcript = pane.transcript
+    const isCodex = Boolean(pane.codexThreadId)
     const derived = deriveStatus({
       ptyAlive: snapshot.status !== 'exited' && snapshot.status !== 'error',
       exitCode: snapshot.exitCode,
       pollStatus: pane.pollStatus,
       blocked: pane.blocked,
       turnCompleteUnread: pane.turnCompleteUnread,
-      toolRunning: Boolean(transcript?.currentTool),
+      toolRunning: Boolean(isCodex ? pane.codexCurrentTool : transcript?.currentTool),
       turnActive: pane.turnActive,
       registered: pane.registered,
     })
@@ -258,13 +418,14 @@ export class FleetMonitor {
     this.sessions.patch(paneId, {
       status: derived.status,
       needsAttention: derived.needsAttention,
-      aiTitle: transcript?.aiTitle,
-      model: transcript?.model ?? snapshot.model,
-      branch: transcript?.branch,
-      currentTool: transcript?.currentTool,
-      recentTools: transcript?.recentTools ?? [],
-      tokens: transcript?.tokens,
-      costUsd: transcript ? estimateCostUsd(transcript.tokens) : undefined,
+      aiTitle: isCodex ? pane.codexName : transcript?.aiTitle,
+      model: isCodex ? pane.codexModel ?? snapshot.model : transcript?.model ?? snapshot.model,
+      branch: isCodex ? pane.codexBranch : transcript?.branch,
+      currentTool: isCodex ? pane.codexCurrentTool : transcript?.currentTool,
+      recentTools: isCodex ? pane.codexRecentTools : transcript?.recentTools ?? [],
+      tokens: isCodex ? pane.codexTokens : transcript?.tokens,
+      // Codex subscription usage does not map reliably to API dollar pricing.
+      costUsd: isCodex ? undefined : transcript ? estimateCostUsd(transcript.tokens) : undefined,
     })
   }
 }

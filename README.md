@@ -1,6 +1,6 @@
 # Torc
 
-A fleet console for CLI coding agents. Run several Claude Code sessions side by side, see at a glance
+A fleet console for CLI coding agents. Run Claude Code and Codex sessions side by side, see at a glance
 which one is working and which one is blocked by you, and drive all of it from ⌘K.
 
 Torc is **not** an editor. Keep editing in VS Code or Cursor. Torc is the layer above the terminal
@@ -22,6 +22,8 @@ through terminal tabs.
 
 - **Real terminals.** `node-pty` + xterm.js with the WebGL renderer, so any CLI works: `claude`,
   `codex`, plain `zsh`.
+- **Structured Codex monitoring.** Start a Codex agent from ⌘K—or type `codex` in a Torc shell—to
+  see its thread name, working/waiting state, current tool, model, branch, and token usage.
 - **Live fleet monitoring.** Every agent's status, current tool call, git branch, token count and
   rough cost — and an amber **needs you** flag the moment an agent asks for permission.
 - **Mission Control** (`⌘⏎`) — every agent as a card, sorted so whoever needs you is first.
@@ -66,12 +68,12 @@ There's a Matrix theme too — that's the first screenshot.
 
 ## Getting started
 
-**You'll need:** macOS on Apple silicon, Node 20+, and [Claude Code](https://claude.com/claude-code)
-installed and signed in. Check the last one first — Torc drives the `claude` binary, so if
-`claude --version` doesn't work in your terminal, nothing else will:
+**You'll need:** macOS on Apple silicon, Node 20+, and at least one supported agent CLI installed and
+signed in: Claude Code or Codex. Check the CLI before starting Torc:
 
 ```bash
 claude --version
+codex --version
 node --version
 ```
 

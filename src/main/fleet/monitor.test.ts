@@ -69,6 +69,9 @@ afterEach(() => {
 const poll = (m: FleetMonitor, agents: DiscoveredAgent[]) =>
   (m as unknown as { onPoll(a: DiscoveredAgent[]): Promise<void> }).onPoll(agents)
 
+const codex = (m: FleetMonitor, event: object) =>
+  (m as unknown as { onCodex(event: object): void }).onCodex(event)
+
 describe('FleetMonitor claims', () => {
   it('adopts a claude the user started in a pane', async () => {
     const sessions = fakeSessions([pane()])
@@ -158,5 +161,67 @@ describe('FleetMonitor claims', () => {
 
     await poll(monitor, [agent('first', 'idle')])
     expect(sessions.snapshot('pane-1').status).toBe('idle')
+  })
+})
+
+describe('FleetMonitor Codex adapter', () => {
+  it('maps structured thread telemetry onto its pane', () => {
+    const sessions = fakeSessions([pane({ kind: 'codex' })])
+    const monitor = start(sessions)
+    monitor.track(sessions.snapshot('pane-1'))
+
+    codex(monitor, {
+      type: 'thread',
+      thread: {
+        id: 'thread-1',
+        cwd: '/repo',
+        name: 'Ship Codex monitoring',
+        model: 'gpt-test',
+        status: { type: 'active', activeFlags: [] },
+        gitInfo: { branch: 'feature/codex' },
+      },
+    })
+    codex(monitor, {
+      type: 'item-started',
+      threadId: 'thread-1',
+      item: { type: 'commandExecution', command: 'npm test' },
+      startedAt: 100,
+    })
+    codex(monitor, {
+      type: 'tokens',
+      threadId: 'thread-1',
+      usage: { inputTokens: 10, outputTokens: 5, cachedInputTokens: 3 },
+    })
+
+    expect(sessions.snapshot('pane-1')).toMatchObject({
+      codexThreadId: 'thread-1',
+      aiTitle: 'Ship Codex monitoring',
+      model: 'gpt-test',
+      branch: 'feature/codex',
+      status: 'working',
+      currentTool: { name: 'Bash', summary: 'npm test' },
+      tokens: { input: 10, output: 5, cacheRead: 3, cacheWrite: 0 },
+    })
+    expect(sessions.snapshot('pane-1').costUsd).toBeUndefined()
+  })
+
+  it('surfaces Codex approval waits as needing attention', () => {
+    const sessions = fakeSessions([pane({ kind: 'codex' })])
+    const monitor = start(sessions)
+    monitor.track(sessions.snapshot('pane-1'))
+    codex(monitor, {
+      type: 'thread',
+      thread: { id: 'thread-1', cwd: '/repo', status: { type: 'idle' } },
+    })
+    codex(monitor, {
+      type: 'status',
+      threadId: 'thread-1',
+      status: { type: 'active', activeFlags: ['waitingOnApproval'] },
+    })
+
+    expect(sessions.snapshot('pane-1')).toMatchObject({
+      status: 'needs-input',
+      needsAttention: true,
+    })
   })
 })

@@ -56,6 +56,24 @@ export function buildCommands(): Command[] {
       },
     },
     {
+      id: 'session.new-codex',
+      title: 'New Codex agent',
+      subtitle: 'Starts Codex with live status, tools, names and token usage',
+      group: 'Session',
+      keywords: ['codex', 'openai', 'spawn', 'start'],
+      run: () => useStore.getState().newSession({ kind: 'codex' }),
+    },
+    {
+      id: 'session.new-codex-in',
+      title: 'New Codex agent in folder…',
+      group: 'Session',
+      keywords: ['codex', 'openai', 'directory', 'repo'],
+      run: async () => {
+        const cwd = await window.torc.pickDirectory()
+        if (cwd) await useStore.getState().newSession({ kind: 'codex', cwd })
+      },
+    },
+    {
       id: 'session.new-terminal-in',
       title: 'New terminal in folder…',
       group: 'Session',

@@ -2,6 +2,7 @@ import type { SessionSnapshot } from '@shared/types'
 import { useStore } from '../state/store'
 import { SLOTS, effectiveGrid, visibleWindow } from '../layout/panes'
 import { TerminalPane } from './TerminalPane'
+import { paneLabel } from '../state/label'
 
 /**
  * Every terminal stays mounted in one stable parent and is *positioned* by
@@ -49,7 +50,7 @@ export function PaneGrid({ panes }: { panes: SessionSnapshot[] }) {
             )}
             {grid > 1 && slot && (
               <div className="pointer-events-none absolute top-1 right-2 z-20 font-mono text-[10px] text-muted opacity-70">
-                {pane.title}
+                {paneLabel(pane)}
               </div>
             )}
             <TerminalPane pane={pane} active={isActive} visible={Boolean(slot)} />

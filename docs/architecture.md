@@ -30,6 +30,14 @@ exposes all of it as structured data.
 | `claude --settings <file>` | Injects Torc's hooks per session, leaving `~/.claude/settings.json` untouched | `fleet/hooksSettings.ts` |
 | `claude -w/--worktree` | Isolated checkout per agent | `pty/launchArgs.ts` |
 
+Codex uses a parallel structured path. Torc starts `codex app-server` on an automatically allocated
+loopback WebSocket port and connects as an observing client. Codex panes—and a `codex` typed inside a
+Torc shell—are routed to that endpoint with `--remote`. Thread status flags identify approval and
+user-input waits; turn and item lifecycle notifications provide working state and current tools;
+thread metadata supplies names, models and Git state; token-usage notifications supply totals. The
+adapter lives in `fleet/codexAppServer.ts`; no Codex terminal output is parsed and user configuration
+under `~/.codex/` is not edited.
+
 The `<cwd-slug>` is the cwd with every `/` replaced by `-`, so `/Users/x/side` becomes
 `-Users-x-side`. A resumed session or a worktree can land under a different slug than the cwd we
 spawned with, so the tailer falls back to scanning for the id.

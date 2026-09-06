@@ -58,6 +58,8 @@ export interface AgentLaunchConfig {
    * hand-launched agent gets the same hooks as one Torc spawned.
    */
   shimDir?: string
+  /** Torc-owned app-server used by Codex panes and the monitor. */
+  codexRemote?: string
 }
 
 /** Lightweight view used for process-ancestry matching. */
@@ -95,6 +97,9 @@ export class SessionManager {
     // never modified.
     if (spec.kind === 'claude' && this.launchConfig.settingsPath) {
       plan.args.push('--settings', this.launchConfig.settingsPath)
+    }
+    if (spec.kind === 'codex' && this.launchConfig.codexRemote) {
+      plan.args.unshift('--remote', this.launchConfig.codexRemote)
     }
 
     const id = randomUUID()
@@ -215,7 +220,7 @@ export class SessionManager {
       // failure, and it should read as an error rather than quietly become a
       // shell.
       const ranFor = Date.now() - session.snapshot.startedAt
-      if (session.snapshot.kind === 'claude' && !session.closing && ranFor > 2000) {
+      if ((session.snapshot.kind === 'claude' || session.snapshot.kind === 'codex') && !session.closing && ranFor > 2000) {
         void this.fallBackToShell(session, exitCode)
         return
       }
@@ -286,6 +291,7 @@ export class SessionManager {
     // Claude prints its own `claude --resume` line on the way out, which is a
     // better offer than a stale session id nobody can see.
     session.snapshot.claudeSessionId = undefined
+    session.snapshot.codexThreadId = undefined
     session.snapshot.aiTitle = undefined
     session.snapshot.currentTool = undefined
     session.snapshot.recentTools = []

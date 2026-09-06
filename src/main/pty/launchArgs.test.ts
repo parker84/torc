@@ -57,4 +57,16 @@ describe('planLaunch', () => {
     expect(plan.args).toEqual(['-l'])
     expect(plan.claudeSessionId).toBeUndefined()
   })
+
+  it('launches and resumes Codex without inventing a thread id', () => {
+    const fresh = planLaunch({ kind: 'codex', cwd: '/tmp/x', model: 'gpt-test' }, SHELL)
+    expect(fresh).toMatchObject({ file: 'codex', args: ['--model', 'gpt-test'] })
+    expect(fresh.claudeSessionId).toBeUndefined()
+
+    const resumed = planLaunch(
+      { kind: 'codex', cwd: '/tmp/x', resumeSessionId: 'thread-123' },
+      SHELL,
+    )
+    expect(resumed.args).toEqual(['resume', 'thread-123'])
+  })
 })

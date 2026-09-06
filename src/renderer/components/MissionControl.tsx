@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { SessionSnapshot } from '@shared/types'
 import { useStore } from '../state/store'
 import { StatusDot, statusLabel } from './StatusDot'
+import { paneLabel } from '../state/label'
 
 /*
  * How long the pane has been in the state it's in — the number beside a working
@@ -46,7 +47,7 @@ function AgentCard({ pane, now }: { pane: SessionSnapshot; now: number }) {
     >
       <div className="flex items-center gap-2">
         <StatusDot status={pane.status} needsAttention={pane.needsAttention} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">{pane.title}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">{paneLabel(pane)}</span>
         <span className="shrink-0 font-mono text-[10px] text-muted">
           {elapsed(pane.statusSince, now)}
         </span>

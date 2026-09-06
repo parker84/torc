@@ -25,6 +25,12 @@ export function planLaunch(spec: SessionSpec, shell: string): LaunchPlan {
     return { file: shell, args: ['-l'], title }
   }
 
+  if (spec.kind === 'codex') {
+    const args = spec.resumeSessionId ? ['resume', spec.resumeSessionId] : []
+    if (spec.model) args.unshift('--model', spec.model)
+    return { file: 'codex', args, title }
+  }
+
   const args: string[] = []
   let claudeSessionId: string | undefined
 

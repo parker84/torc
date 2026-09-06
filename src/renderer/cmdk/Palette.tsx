@@ -60,7 +60,9 @@ export function Palette() {
 
     // Send and broadcast are actions, not searches: one row that does the thing.
     if (mode === 'send' || mode === 'broadcast') {
-      const agents = panes.filter((p) => p.kind === 'claude')
+      const agents = panes.filter(
+        (p) => p.kind !== 'shell' || Boolean(p.claudeSessionId || p.codexThreadId),
+      )
       const target = panes.find((p) => p.id === useStore.getState().activeId)
       const trimmed = query.trim()
       if (trimmed.length === 0) return []
