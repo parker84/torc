@@ -68,6 +68,7 @@ const api: TorcApi = {
   shareTheme: (theme) => ipcRenderer.send(IPC.themeShare, theme),
   onThemeApply: (cb) => subscribe<[string]>(IPC.themeApply, cb),
   openIn: (path, target) => ipcRenderer.send(IPC.appOpenIn, path, target),
+  openExternal: (url) => ipcRenderer.send(IPC.appOpenExternal, url),
   showPaneMenu: (id, selection) => ipcRenderer.send(IPC.paneContextMenu, id, selection),
   onFocusPane: (cb) => subscribe<[string]>(IPC.focusPane, cb),
   onData: (cb) => subscribe<[string, string]>(IPC.sessionData, cb),

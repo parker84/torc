@@ -58,7 +58,10 @@ export function TerminalPane({ pane, active, visible }: Props) {
     const search = new SearchAddon()
     term.loadAddon(fit)
     term.loadAddon(search)
-    term.loadAddon(new WebLinksAddon((_event, uri) => window.open(uri)))
+    // Go through main explicitly. `window.open()` is subject to Chromium's popup
+    // handling and can be discarded before Electron's window-open handler sees
+    // it, which made detected links look clickable but do nothing.
+    term.loadAddon(new WebLinksAddon((_event, uri) => window.torc.openExternal(uri)))
     term.open(host)
     registerSearch(pane.id, search)
 

@@ -410,6 +410,14 @@ function registerIpc(): void {
       if (error) shell.openPath(path)
     })
   })
+  ipcMain.on(IPC.appOpenExternal, (_e, url: string) => {
+    try {
+      const protocol = new URL(url).protocol
+      if (protocol === 'http:' || protocol === 'https:') void shell.openExternal(url)
+    } catch {
+      // Ignore malformed URLs at the IPC boundary.
+    }
+  })
   ipcMain.handle(IPC.appPickDir, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],

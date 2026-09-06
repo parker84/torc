@@ -117,6 +117,7 @@ export const IPC = {
   /** main → renderer: another window changed it; catch up. */
   themeApply: 'theme:apply',
   appOpenIn: 'app:open-in',
+  appOpenExternal: 'app:open-external',
   /** Right-click in a pane; main owns Menu, so it builds and pops the menu. */
   paneContextMenu: 'pane:context-menu',
   /** main → renderer: the user clicked a notification. */
@@ -195,6 +196,8 @@ export interface TorcApi {
   shareTheme(theme: string): void
   onThemeApply(cb: (theme: string) => void): () => void
   openIn(path: string, target: 'editor' | 'finder'): void
+  /** Opens an http(s) URL in the system browser. */
+  openExternal(url: string): void
   /**
    * Opens the pane's right-click menu. The selection is passed in because it
    * lives in xterm's own model, not the DOM — with the WebGL renderer there is
