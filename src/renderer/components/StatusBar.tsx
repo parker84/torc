@@ -12,7 +12,9 @@ export function StatusBar() {
   const active = panes.find((p) => p.id === activeId)
 
   // Panes and agents are different counts now that ⌘T opens a plain shell.
-  const agents = panes.filter((p) => p.kind === 'claude').length
+  const agents = panes.filter(
+    (p) => p.kind !== 'shell' || Boolean(p.claudeSessionId || p.codexThreadId),
+  ).length
   const attention = panes.filter((p) => p.needsAttention).length
 
   return (

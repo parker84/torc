@@ -110,6 +110,7 @@ describe('persist', () => {
           panes: [
             { kind: 'claude', cwd, title: 'kept', claudeSessionId: 'kept-session' },
             { kind: 'claude', cwd, title: 'gone', claudeSessionId: 'no-such-session' },
+            { kind: 'codex', cwd, title: 'codex', codexThreadId: 'thread-1' },
             { kind: 'shell', cwd, title: 'shell' },
           ],
         },
@@ -117,10 +118,10 @@ describe('persist', () => {
     })
 
     const panes = loadState()?.windows[0].panes
-    expect(panes?.map((p) => p.title)).toEqual(['kept', 'gone', 'shell'])
-    expect(panes?.map((p) => p.resumable)).toEqual([true, false, false])
+    expect(panes?.map((p) => p.title)).toEqual(['kept', 'gone', 'codex', 'shell'])
+    expect(panes?.map((p) => p.resumable)).toEqual([true, false, true, false])
     // Kinds must survive: restoring an agent as a shell loses the agent.
-    expect(panes?.map((p) => p.kind)).toEqual(['claude', 'claude', 'shell'])
+    expect(panes?.map((p) => p.kind)).toEqual(['claude', 'claude', 'codex', 'shell'])
     rmSync(cwd, { recursive: true, force: true })
   })
 

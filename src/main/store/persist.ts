@@ -9,10 +9,11 @@ import { transcriptPath } from '../fleet/transcript'
  * restart costs you a few seconds rather than the whole conversation.
  */
 export interface SavedPane {
-  kind: 'claude' | 'shell'
+  kind: 'claude' | 'codex' | 'shell'
   cwd: string
   title: string
   claudeSessionId?: string
+  codexThreadId?: string
   /** Kept, or a restored pane would go back to being called after its folder. */
   renamed?: boolean
   /**
@@ -83,9 +84,10 @@ export function loadState(): SavedState | undefined {
         panes: window.panes.map((pane) => ({
           ...pane,
           resumable:
-            pane.kind === 'claude' &&
-            Boolean(pane.claudeSessionId) &&
-            transcriptPath(pane.cwd, pane.claudeSessionId!) !== undefined,
+            (pane.kind === 'claude' &&
+              Boolean(pane.claudeSessionId) &&
+              transcriptPath(pane.cwd, pane.claudeSessionId!) !== undefined) ||
+            (pane.kind === 'codex' && Boolean(pane.codexThreadId)),
         })),
       })),
     }

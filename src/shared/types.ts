@@ -1,6 +1,6 @@
 /** Shared vocabulary between main, preload and renderer. No node imports here. */
 
-export type AgentKind = 'claude' | 'shell'
+export type AgentKind = 'claude' | 'codex' | 'shell'
 
 /**
  * Lifecycle of an agent pane. M0 only produces launching → idle → exited/error;
@@ -63,6 +63,8 @@ export interface SessionSnapshot {
   id: string
   /** Claude's session id — we assign it at spawn so we can find the transcript. */
   claudeSessionId?: string
+  /** Codex app-server thread id. */
+  codexThreadId?: string
   kind: AgentKind
   cwd: string
   title: string
@@ -133,6 +135,7 @@ export interface SavedPane {
   cwd: string
   title: string
   claudeSessionId?: string
+  codexThreadId?: string
   /** Kept, or a restored pane would go back to being called after its folder. */
   renamed?: boolean
   /** False when the transcript is gone, so resuming would fail. */

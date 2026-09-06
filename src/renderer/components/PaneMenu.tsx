@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useStore } from '../state/store'
+import { paneLabel } from '../state/label'
 
 /**
  * The per-pane menu behind the rail's ⋮ button and its right-click. Rendered in
@@ -126,7 +127,7 @@ export function PaneMenu({ anchor, onClose }: { anchor: MenuAnchor; onClose(): v
       className="fixed z-50 overflow-hidden rounded-lg border border-line bg-raised py-1 shadow-2xl outline-none"
     >
       <div className="truncate px-3 pt-1 pb-2 text-[10px] tracking-wide text-muted uppercase">
-        {pane.title}
+        {paneLabel(pane)}
       </div>
       {items.map((item, index) => (
         <button

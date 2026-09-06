@@ -8,7 +8,7 @@ import { IPC, type AgentKind, type SavedState, type SessionSpec } from '@shared/
 import { SessionManager } from './pty/SessionManager'
 import { FleetMonitor } from './fleet/monitor'
 import { writeHooksSettings } from './fleet/hooksSettings'
-import { writeClaudeShim } from './fleet/claudeShim'
+import { writeClaudeShim, writeCodexShim } from './fleet/claudeShim'
 import { resolveUserEnv } from './env'
 import { updateAttention } from './notify'
 import { loadState } from './store/persist'
@@ -453,15 +453,19 @@ app.whenReady().then(() => {
     .start()
     .then(async () => {
       const settingsPath = writeHooksSettings()
+      const claudeShimDir = await writeClaudeShim(settingsPath)
+      const codexRemote = monitor.codexRemoteUrl
+      const codexShimDir = codexRemote ? await writeCodexShim(codexRemote) : undefined
       sessions.configureAgents({
         settingsPath,
         hookUrl: monitor.hookUrl,
-        shimDir: await writeClaudeShim(settingsPath),
+        shimDir: claudeShimDir ?? codexShimDir,
+        codexRemote,
       })
     })
     .catch((error) => console.error('torc: fleet monitor failed to start', error))
-
-  createFirstWindow()
+    // Restored agents must not spawn before their hooks/remote endpoint exist.
+    .finally(() => createFirstWindow())
 
   app.on('activate', () => {
     // Clicking the dock icon with every window closed. There is nothing left to
