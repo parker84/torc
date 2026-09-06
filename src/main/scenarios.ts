@@ -106,6 +106,36 @@ export async function runScenarios(
 
   // ── jumping ──────────────────────────────────────────────────────────────
   const ids = await js<string[]>(`window.__torc.store.getState().panes.map(p => p.id)`)
+
+  // Exercise the browser interaction, not just the store action. Dropping on
+  // the lower half of the last row moves the first pane to the end; that order
+  // is also what the number shortcuts and persisted layout consume.
+  const draggedOrder = await js<string[]>(`(async () => {
+    const source = document.querySelector('[data-pane-id=${JSON.stringify(ids[0])}]')
+    const target = document.querySelector('[data-pane-id=${JSON.stringify(ids[2])}]')
+    if (!source || !target) return []
+    const transfer = new DataTransfer()
+    source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }))
+    await new Promise(requestAnimationFrame)
+    const box = target.getBoundingClientRect()
+    const options = { bubbles: true, cancelable: true, dataTransfer: transfer, clientY: box.bottom - 1 }
+    target.dispatchEvent(new DragEvent('dragover', options))
+    target.dispatchEvent(new DragEvent('drop', options))
+    source.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: transfer }))
+    await new Promise(requestAnimationFrame)
+    return window.__torc.store.getState().panes.map((pane) => pane.id)
+  })()`)
+  check(
+    'dragging a fleet tab changes its order',
+    draggedOrder.join(',') === [ids[1], ids[2], ids[0]].join(','),
+    draggedOrder.join(','),
+  )
+
+  // Leave the rest of this long scenario in its known original order.
+  await js(
+    `window.__torc.store.getState().reorderPane(${JSON.stringify(ids[0])}, ${JSON.stringify(ids[1])}, 'before')`,
+  )
+
   await js(`window.__torc.store.getState().focusIndex(0)`)
   await delay(300)
   await js(`window.__torc.store.getState().focusIndex(2)`)
