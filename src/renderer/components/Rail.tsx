@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state/store'
+import type { DropEdge } from '../state/reorder'
 import { paneLabel } from '../state/label'
 import { PaneMenu, type MenuAnchor } from './PaneMenu'
 import { StatusDot, statusLabel } from './StatusDot'
@@ -49,7 +50,11 @@ export function Rail() {
   const setActive = useStore((s) => s.setActive)
   const newSession = useStore((s) => s.newSession)
   const closePane = useStore((s) => s.closePane)
+  const reorderPane = useStore((s) => s.reorderPane)
   const [menu, setMenu] = useState<MenuAnchor | null>(null)
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const draggedIdRef = useRef<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ paneId: string; edge: DropEdge } | null>(null)
 
   // Opened from the ⋮ button and from a right-click anywhere on the row, because
   // both are things people try first.
@@ -58,6 +63,17 @@ export function Rail() {
     event.stopPropagation()
     const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
     setMenu({ paneId, x: event.clientX, y: box.bottom + 4 })
+  }
+
+  const dragEdge = (event: React.DragEvent): DropEdge => {
+    const box = event.currentTarget.getBoundingClientRect()
+    return event.clientY < box.top + box.height / 2 ? 'before' : 'after'
+  }
+
+  const finishDrag = () => {
+    draggedIdRef.current = null
+    setDraggedId(null)
+    setDropTarget(null)
   }
 
   return (
@@ -116,11 +132,49 @@ export function Rail() {
           return (
             <div
               key={pane.id}
+              data-pane-id={pane.id}
+              draggable={!isRenaming}
+              onDragStart={(event) => {
+                // The ref is available to the next native drag event even if
+                // React has not rendered the visual dragging state yet.
+                draggedIdRef.current = pane.id
+                setDraggedId(pane.id)
+                event.dataTransfer.effectAllowed = 'move'
+                event.dataTransfer.setData('text/plain', pane.id)
+              }}
+              onDragOver={(event) => {
+                const movedId = draggedIdRef.current
+                if (!movedId || movedId === pane.id) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'move'
+                setDropTarget({ paneId: pane.id, edge: dragEdge(event) })
+              }}
+              onDragLeave={(event) => {
+                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+                if (dropTarget?.paneId === pane.id) setDropTarget(null)
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                const movedId = draggedIdRef.current ?? event.dataTransfer.getData('text/plain')
+                if (movedId) reorderPane(movedId, pane.id, dragEdge(event))
+                finishDrag()
+              }}
+              onDragEnd={finishDrag}
               onContextMenu={(e) => openMenu(e, pane.id)}
-              className={`group relative mb-0.5 flex items-center rounded-md transition-colors ${
+              className={`group relative mb-0.5 flex items-center rounded-md transition-[background-color,color,opacity] ${
+                draggedId === pane.id ? 'opacity-40' : ''
+              } ${
                 isActive ? 'bg-accent-soft text-fg' : 'text-muted hover:bg-raised hover:text-fg'
               }`}
             >
+              {dropTarget?.paneId === pane.id && (
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute right-1 left-1 z-10 h-0.5 rounded bg-accent ${
+                    dropTarget.edge === 'before' ? '-top-px' : '-bottom-px'
+                  }`}
+                />
+              )}
               {/* A plain div while renaming: an <input> inside a <button> is
                   invalid, and the button swallows clicks meant for the field. */}
               {isRenaming ? (

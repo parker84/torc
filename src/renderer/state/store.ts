@@ -3,6 +3,7 @@ import type { SessionSnapshot, SessionSpec } from '@shared/types'
 import { migrateThemeId, THEME_IDS, type ThemeId } from '../themes'
 import { forgetSession } from '../term/bus'
 import { previous, touch } from './recency'
+import { reorderById, type DropEdge } from './reorder'
 
 const THEME_KEY = 'torc:theme'
 
@@ -58,6 +59,8 @@ interface TorcState {
   setActive(id: string): void
   focusIndex(index: number): void
   cyclePane(delta: number): void
+  /** Moves a pane beside another pane in the fleet. */
+  reorderPane(movedId: string, targetId: string, edge: DropEdge): void
   applyUpdate(snapshot: SessionSnapshot): void
   markExited(id: string, exitCode: number): void
   setTheme(theme: ThemeId): void
@@ -179,6 +182,10 @@ export const useStore = create<TorcState>((set, get) => ({
     const current = panes.findIndex((p) => p.id === activeId)
     const next = (current + delta + panes.length) % panes.length
     get().setActive(panes[next].id)
+  },
+
+  reorderPane(movedId, targetId, edge) {
+    set((s) => ({ panes: reorderById(s.panes, movedId, targetId, edge) }))
   },
 
   applyUpdate(snapshot) {
